@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.QingLongAssistant" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/qinglong_background</item>
+        <item name="android:navigationBarColor">@color/qinglong_background</item>
+        <item name="android:windowBackground">@color/qinglong_background</item>
+    </style>
+</resources>

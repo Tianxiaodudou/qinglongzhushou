@@ -1,0 +1,86 @@
+package com.qinglong.app.ui.screens.task
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.qinglong.app.data.model.Task
+import com.qinglong.app.data.repository.Result
+import com.qinglong.app.data.repository.TaskRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+data class TaskUiState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val tasks: List<Task> = emptyList(),
+    val searchQuery: String = "",
+    val filterTab: TaskFilterTab = TaskFilterTab.ALL
+)
+
+enum class TaskFilterTab { ALL, RUNNING, STOPPED }
+
+@HiltViewModel
+class TaskViewModel @Inject constructor(
+    private val taskRepository: TaskRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(TaskUiState())
+    val uiState: StateFlow<TaskUiState> = _uiState.asStateFlow()
+
+    init {
+        loadTasks()
+    }
+
+    fun loadTasks() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val filter = when (_uiState.value.filterTab) {
+                TaskFilterTab.ALL -> null
+                TaskFilterTab.RUNNING -> "running"
+                TaskFilterTab.STOPPED -> "stopped"
+            }
+
+            when (val result = taskRepository.getTasks(
+                search = _uiState.value.searchQuery.takeIf { it.isNotBlank() },
+                filter = filter
+            )) {
+                is Result.Success -> {
+                    _uiState.update { it.copy(isLoading = false, tasks = result.data) }
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(isLoading = false, error = result.message) }
+                }
+            }
+        }
+    }
+
+    fun setFilterTab(tab: TaskFilterTab) {
+        _uiState.update { it.copy(filterTab = tab) }
+        loadTasks()
+    }
+
+    fun setSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        loadTasks()
+    }
+
+    fun runTask(taskId: String) {
+        viewModelScope.launch {
+            when (taskRepository.runTask(taskId)) {
+                is Result.Success -> loadTasks()
+                is Result.Error -> { /* TODO: show error toast */ }
+            }
+        }
+    }
+
+    fun stopTask(taskId: String) {
+        viewModelScope.launch {
+            when (taskRepository.stopTask(taskId)) {
+                is Result.Success -> loadTasks()
+                is Result.Error -> { /* TODO: show error toast */ }
+            }
+        }
+    }
+}

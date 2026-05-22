@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">青龙助手</string>
+
+    <!-- Login Screen -->
+    <string name="login_title">登录青龙面板</string>
+    <string name="server_address">服务器地址</string>
+    <string name="domain_hint">yourdomain.com</string>
+    <string name="port_hint">5700</string>
+    <string name="username">用户名</string>
+    <string name="password">密码</string>
+    <string name="use_https">使用 HTTPS</string>
+    <string name="login_button">登录</string>
+    <string name="login_loading">正在登录…</string>
+    <string name="login_failed">登录失败：%s</string>
+    <string name="manage_servers">管理已保存的服务器</string>
+
+    <!-- Navigation Drawer -->
+    <string name="nav_timer_tasks">定时任务</string>
+    <string name="nav_subscription">订阅管理</string>
+    <string name="nav_logs">日志管理</string>
+    <string name="nav_env_vars">环境变量</string>
+    <string name="nav_system">系统状态</string>
+    <string name="nav_panel_settings">面板设置</string>
+    <string name="nav_app_settings">应用设置</string>
+    <string name="logout">退出登录</string>
+
+    <!-- Task Screen -->
+    <string name="tab_all">全部</string>
+    <string name="tab_running">运行中</string>
+    <string name="tab_stopped">已停止</string>
+    <string name="add_task">新建任务</string>
+    <string name="search_hint">搜索任务…</string>
+
+    <!-- Common -->
+    <string name="confirm">确认</string>
+    <string name="cancel">取消</string>
+    <string name="save">保存</string>
+    <string name="delete">删除</string>
+    <string name="edit">编辑</string>
+    <string name="error">错误</string>
+    <string name="retry">重试</string>
+    <string name="loading">加载中…</string>
+    <string name="empty">暂无数据</string>
+</resources>
