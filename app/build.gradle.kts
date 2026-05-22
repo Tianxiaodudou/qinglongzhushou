@@ -24,10 +24,11 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("qinglong.jks")
-            storePassword = "qinglong123"
+            storeFile = file("qinglong.p12")
+            storePassword = "qinglong_fixed_2026"
             keyAlias = "qinglong"
-            keyPassword = "qinglong123"
+            keyPassword = "qinglong_fixed_2026"
+            storeType = "PKCS12"
         }
     }
 

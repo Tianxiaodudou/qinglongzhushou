@@ -23,25 +23,6 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Restore cached keystore
-        id: keystore-cache
-        uses: actions/cache@v4
-        with:
-          path: app/qinglong.jks
-          key: qinglong-keystore-v1
-
-      - name: Generate keystore (first time)
-        if: steps.keystore-cache.outputs.cache-hit != 'true'
-        run: |
-          keytool -genkey -v \
-            -keystore app/qinglong.jks \
-            -keyalg RSA -keysize 2048 \
-            -validity 36500 \
-            -alias qinglong \
-            -storepass qinglong123 \
-            -keypass qinglong123 \
-            -dname "CN=QingLong, OU=QingLong, O=QingLong, L=Beijing, ST=Beijing, C=CN"
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -101,14 +82,12 @@ jobs:
           - 👁️ 密码输入框小眼睛可切换明文显示
           - 🔒 固定应用签名（支持覆盖安装）
           - 📝 APK 文件名带版本号和编译时间
+          - 📋 实时运行日志写入 Download/qinglong.txt
 
           ### 下载
           - APK: app-debug.apk
           - 编译时间: ${{ steps.release.outputs.tag }}
           RELEOF
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/release_body.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
