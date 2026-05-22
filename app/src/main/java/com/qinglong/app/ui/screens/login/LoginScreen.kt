@@ -128,7 +128,7 @@ fun LoginScreen(
                         )
                     }
 
-                    HorizontalDivider(color = QingLongSurfaceVariant)
+                    Divider(color = QingLongSurfaceVariant, thickness = 0.5.dp)
 
                     // Domain
                     OutlinedTextField(
@@ -283,7 +283,7 @@ fun LoginScreen(
             // Manage servers
             TextButton(onClick = { /* TODO: show server list */ }) {
                 Icon(
-                    Icons.Default.Server,
+                    Icons.Default.Dns,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp)
                 )

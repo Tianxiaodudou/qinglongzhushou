@@ -119,8 +119,10 @@ fun QingLongDrawer(
             }
         }
 
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp),
+        Divider(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
             thickness = 0.5.dp,
             color = MaterialTheme.colorScheme.outlineVariant
         )
@@ -158,8 +160,11 @@ fun QingLongDrawer(
         Spacer(modifier = Modifier.weight(1f))
 
         // Logout
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp),
+        Divider(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            thickness = 0.5.dp,
             color = MaterialTheme.colorScheme.outlineVariant
         )
         NavigationDrawerItem(
