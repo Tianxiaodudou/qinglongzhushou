@@ -13,6 +13,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      APP_NAME: 青龙助手
+      APP_VERSION: 1.0.0
     steps:
       - uses: actions/checkout@v4
 
@@ -60,7 +63,14 @@ jobs:
       - name: Prepare release info
         id: release
         run: |
-          APK_FILE=$(ls *.apk | head -1)
+          echo "=== 当前目录文件 ==="
+          ls -la
+          APK_FILE=$(ls *.apk 2>/dev/null | head -1)
+          if [ -z "$APK_FILE" ]; then
+            # 可能在子目录里
+            APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          fi
+          echo "找到APK: $APK_FILE"
           # 从APK文件名中提取时间戳: 青龙助手-v1.0.0-20260522-2245.apk → 20260522-2245
           BUILD_DATE=$(echo "$APK_FILE" | grep -oP '\d{8}-\d{4}')
           TAG="v${APP_VERSION}-${BUILD_DATE}"
