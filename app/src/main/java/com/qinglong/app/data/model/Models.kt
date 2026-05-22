@@ -152,11 +152,3 @@ data class NetIoInfo(
     val packetsSent: Long,
     val packetsRecv: Long
 )
-
-// ===================== Generic Response =====================
-
-data class ApiResponse<T>(
-    val code: Int,
-    val data: T?,
-    val message: String?
-)
