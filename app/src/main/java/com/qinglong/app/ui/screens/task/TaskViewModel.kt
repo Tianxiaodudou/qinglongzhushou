@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.qinglong.app.data.model.Task
 import com.qinglong.app.data.repository.Result
 import com.qinglong.app.data.repository.TaskRepository
+import com.qinglong.app.util.LiveLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -39,20 +40,24 @@ class TaskViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
+            val query = _uiState.value.searchQuery
             val filter = when (_uiState.value.filterTab) {
                 TaskFilterTab.ALL -> null
                 TaskFilterTab.RUNNING -> "running"
                 TaskFilterTab.STOPPED -> "stopped"
             }
+            LiveLogger.i("Task", "加载任务列表: search=$query, filter=$filter")
 
             when (val result = taskRepository.getTasks(
-                search = _uiState.value.searchQuery.takeIf { it.isNotBlank() },
+                search = query.takeIf { it.isNotBlank() },
                 filter = filter
             )) {
                 is Result.Success -> {
+                    LiveLogger.i("Task", "加载成功: ${result.data.size} 个任务")
                     _uiState.update { it.copy(isLoading = false, tasks = result.data) }
                 }
                 is Result.Error -> {
+                    LiveLogger.e("Task", "加载失败: ${result.message}")
                     _uiState.update { it.copy(isLoading = false, error = result.message) }
                 }
             }

@@ -6,6 +6,7 @@ import com.qinglong.app.data.model.LoginRequest
 import com.qinglong.app.data.model.ServerConfig
 import com.qinglong.app.data.repository.AuthRepository
 import com.qinglong.app.di.NetworkModule
+import com.qinglong.app.util.LiveLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -74,11 +75,15 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
+            val protocol = if (state.isHttps) "https" else "http"
+            val baseUrl = "${protocol}://${state.domain}:${port}"
+            LiveLogger.i("Login", "尝试登录: $baseUrl")
+
             try {
                 // 根据用户输入的服务器信息动态创建 API 实例
                 val port = state.port.toIntOrNull() ?: 5700
                 val api = NetworkModule.createApi(
-                    protocol = if (state.isHttps) "https" else "http",
+                    protocol = protocol,
                     domain = state.domain,
                     port = port,
                     okHttpClient = okHttpClient
@@ -91,6 +96,7 @@ class LoginViewModel @Inject constructor(
                 if (response.isSuccessful && body != null && body.code == 200 && body.data != null) {
                     val token = body.data.token
                     authRepository.saveToken(token)
+                    LiveLogger.i("Login", "登录成功, token=${token.take(20)}...")
 
                     val serverConfig = ServerConfig(
                         id = UUID.randomUUID().toString(),
@@ -111,23 +117,28 @@ class LoginViewModel @Inject constructor(
                         500 -> "服务器内部错误"
                         else -> "登录失败 (HTTP ${response.code()})"
                     }
+                    LiveLogger.e("Login", "登录失败: code=${response.code()}, msg=${body?.message}, errorMsg=$errorMsg")
                     _uiState.update {
                         it.copy(isLoading = false, error = errorMsg)
                     }
                 }
             } catch (e: java.net.ConnectException) {
+                LiveLogger.e("Login", "连接失败: ${e.message}")
                 _uiState.update {
                     it.copy(isLoading = false, error = "无法连接到服务器，请检查域名和端口")
                 }
             } catch (e: java.net.SocketTimeoutException) {
+                LiveLogger.e("Login", "连接超时: ${e.message}")
                 _uiState.update {
                     it.copy(isLoading = false, error = "连接超时，请检查网络或服务器状态")
                 }
             } catch (e: javax.net.ssl.SSLException) {
+                LiveLogger.e("Login", "SSL错误: ${e.message}")
                 _uiState.update {
                     it.copy(isLoading = false, error = "SSL 连接失败，请尝试使用 HTTP")
                 }
             } catch (e: Exception) {
+                LiveLogger.e("Login", "未知错误", e)
                 _uiState.update {
                     it.copy(isLoading = false, error = "网络错误: ${e.localizedMessage ?: "未知错误"}")
                 }

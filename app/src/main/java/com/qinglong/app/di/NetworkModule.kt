@@ -2,6 +2,7 @@ package com.qinglong.app.di
 
 import android.content.Context
 import com.qinglong.app.data.api.AuthInterceptor
+import com.qinglong.app.data.api.LiveLoggingInterceptor
 import com.qinglong.app.data.api.QingLongApi
 import com.qinglong.app.data.repository.AuthRepository
 import dagger.Module
@@ -39,7 +40,10 @@ object NetworkModule {
             getToken = { authRepository.getToken() }
         )
 
+        val liveLoggingInterceptor = LiveLoggingInterceptor()
+
         return OkHttpClient.Builder()
+            .addInterceptor(liveLoggingInterceptor)
             .addInterceptor(loggingInterceptor)
             .addInterceptor(authInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
