@@ -8,13 +8,13 @@ interface QingLongApi {
 
     // ===================== Auth =====================
 
-    @POST("user/login")
+    @POST("api/user/login")
     suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
 
-    @POST("user/logout")
+    @POST("api/user/logout")
     suspend fun logout(): Response<ApiResponse<Unit>>
 
-    @GET("user/info")
+    @GET("api/user/info")
     suspend fun getUserInfo(): Response<ApiResponse<UserInfo>>
 
     data class UserInfo(
@@ -24,61 +24,61 @@ interface QingLongApi {
 
     // ===================== Task =====================
 
-    @GET("crons")
+    @GET("api/crons")
     suspend fun getTasks(
         @Query("search") search: String? = null,
         @Query("filter") filter: String? = null  // running | stopped
     ): Response<ApiResponse<List<Task>>>
 
-    @POST("crons")
+    @POST("api/crons")
     suspend fun createTask(@Body body: Map<String, Any>): Response<ApiResponse<Task>>
 
-    @PUT("crons/{id}")
+    @PUT("api/crons/{id}")
     suspend fun updateTask(
         @Path("id") id: String,
         @Body body: Map<String, Any>
     ): Response<ApiResponse<Task>>
 
-    @DELETE("crons/{id}")
+    @DELETE("api/crons/{id}")
     suspend fun deleteTask(@Path("id") id: String): Response<ApiResponse<Unit>>
 
-    @POST("crons/{id}/run")
+    @POST("api/crons/{id}/run")
     suspend fun runTask(@Path("id") id: String): Response<ApiResponse<Unit>>
 
-    @POST("crons/{id}/stop")
+    @POST("api/crons/{id}/stop")
     suspend fun stopTask(@Path("id") id: String): Response<ApiResponse<Unit>>
 
-    @POST("crons/{ids}/enable")
+    @POST("api/crons/{ids}/enable")
     suspend fun enableTasks(@Path("ids") ids: String): Response<ApiResponse<Unit>>
 
-    @POST("crons/{ids}/disable")
+    @POST("api/crons/{ids}/disable")
     suspend fun disableTasks(@Path("ids") ids: String): Response<ApiResponse<Unit>>
 
     // ===================== Subscription =====================
 
-    @GET("subs")
+    @GET("api/subs")
     suspend fun getSubscriptions(
         @Query("search") search: String? = null
     ): Response<ApiResponse<List<Subscription>>>
 
-    @POST("subs")
+    @POST("api/subs")
     suspend fun createSubscription(@Body body: Map<String, Any>): Response<ApiResponse<Subscription>>
 
-    @PUT("subs/{id}")
+    @PUT("api/subs/{id}")
     suspend fun updateSubscription(
         @Path("id") id: String,
         @Body body: Map<String, Any>
     ): Response<ApiResponse<Subscription>>
 
-    @DELETE("subs/{id}")
+    @DELETE("api/subs/{id}")
     suspend fun deleteSubscription(@Path("id") id: String): Response<ApiResponse<Unit>>
 
-    @POST("subs/{id}/run")
+    @POST("api/subs/{id}/run")
     suspend fun runSubscription(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ===================== Log =====================
 
-    @GET("logs")
+    @GET("api/logs")
     suspend fun getLogs(
         @Query("taskId") taskId: String? = null,
         @Query("search") search: String? = null,
@@ -86,34 +86,34 @@ interface QingLongApi {
         @Query("pageSize") pageSize: Int = 50
     ): Response<ApiResponse<List<TaskLog>>>
 
-    @GET("logs/{id}")
+    @GET("api/logs/{id}")
     suspend fun getLogDetail(@Path("id") id: String): Response<ApiResponse<TaskLog>>
 
-    @DELETE("logs/{id}")
+    @DELETE("api/logs/{id}")
     suspend fun deleteLog(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ===================== Env Variable =====================
 
-    @GET("envs")
+    @GET("api/envs")
     suspend fun getEnvVariables(
         @Query("search") search: String? = null,
         @Query("type") type: String? = null
     ): Response<ApiResponse<List<EnvVariable>>>
 
-    @POST("envs")
+    @POST("api/envs")
     suspend fun createEnvVariable(@Body body: Map<String, Any>): Response<ApiResponse<EnvVariable>>
 
-    @PUT("envs/{id}")
+    @PUT("api/envs/{id}")
     suspend fun updateEnvVariable(
         @Path("id") id: String,
         @Body body: Map<String, Any>
     ): Response<ApiResponse<EnvVariable>>
 
-    @DELETE("envs/{id}")
+    @DELETE("api/envs/{id}")
     suspend fun deleteEnvVariable(@Path("id") id: String): Response<ApiResponse<Unit>>
 
     // ===================== System =====================
 
-    @GET("system")
+    @GET("api/system")
     suspend fun getSystemStatus(): Response<ApiResponse<SystemStatus>>
 }
