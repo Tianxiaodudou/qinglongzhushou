@@ -75,13 +75,12 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
-            val protocol = if (state.isHttps) "https" else "http"
-            val baseUrl = "${protocol}://${state.domain}:${port}"
-            LiveLogger.i("Login", "尝试登录: $baseUrl")
-
             try {
                 // 根据用户输入的服务器信息动态创建 API 实例
                 val port = state.port.toIntOrNull() ?: 5700
+                val protocol = if (state.isHttps) "https" else "http"
+                val baseUrl = "${protocol}://${state.domain}:${port}"
+                LiveLogger.i("Login", "尝试登录: $baseUrl")
                 val api = NetworkModule.createApi(
                     protocol = protocol,
                     domain = state.domain,
