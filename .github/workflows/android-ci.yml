@@ -60,6 +60,12 @@ jobs:
         with:
           name: app-debug-v1.0
 
+      - name: Locate APK file
+        run: |
+          # download-artifact v4 会创建子目录，把文件移出来
+          find . -name "*.apk" -type f -exec mv {} . \;
+          ls -la *.apk
+
       - name: Prepare release info
         id: release
         run: |
