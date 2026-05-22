@@ -101,17 +101,14 @@ object LiveLogger {
     private fun log(level: String, tag: String, msg: String) {
         write(formatLog(level, tag, msg))
         // 同时输出到 logcat
-        android.util.Log.println(
-            when (level) {
-                "V" -> android.util.Log.VERBOSE
-                "D" -> android.util.Log.DEBUG
-                "I" -> android.util.Log.INFO
-                "W" -> android.util.Log.WARN
-                "E" -> android.util.Log.ERROR
-                else -> android.util.Log.DEBUG
-            },
-            tag, msg
-        )
+        when (level) {
+            "V" -> android.util.Log.v(tag, msg)
+            "D" -> android.util.Log.d(tag, msg)
+            "I" -> android.util.Log.i(tag, msg)
+            "W" -> android.util.Log.w(tag, msg)
+            "E" -> android.util.Log.e(tag, msg)
+            else -> android.util.Log.d(tag, msg)
+        }
     }
 
     private fun formatLog(level: String, tag: String, msg: String): String {
