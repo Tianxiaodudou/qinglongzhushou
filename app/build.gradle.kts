@@ -13,7 +13,7 @@ android {
         applicationId = "com.qinglong.app"
         minSdk = 34
         targetSdk = 34
-        versionCode = 1
+        versionCode = System.currentTimeMillis().toInt() / 1000
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -22,13 +22,26 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("qinglong.jks")
+            storePassword = "qinglong123"
+            keyAlias = "qinglong"
+            keyPassword = "qinglong123"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
