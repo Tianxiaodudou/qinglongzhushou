@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, dev-v1 ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, dev-v1 ]
 
 jobs:
   build:
@@ -24,5 +24,5 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-debug-v1.0
           path: app/build/outputs/apk/debug/app-debug.apk
