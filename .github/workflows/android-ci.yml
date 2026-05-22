@@ -21,8 +21,48 @@ jobs:
         run: chmod +x gradlew
       - name: Build with Gradle
         run: ./gradlew assembleDebug
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-v1.0
           path: app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/dev-v1' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-debug-v1.0
+
+      - name: Get version info
+        id: version
+        run: |
+          echo "tag=v1.0.0-$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+          echo "name=青龙助手 v1.0" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          body: |
+            ## 青龙助手 V1.0 首个版本 🎉
+
+            ### 功能
+            - 🔐 登录界面（HTTP/HTTPS，服务器配置）
+            - 📋 定时任务管理（搜索、标签筛选、批量操作）
+            - 🧭 左侧弹出式导航栏（7个模块入口）
+            - ⚙️ 全局顶栏
+
+            ### 说明
+            - 支持 Android 14+
+            - 需要连接青龙面板服务器
+          files: app-debug.apk
+          draft: false
+          prerelease: false
