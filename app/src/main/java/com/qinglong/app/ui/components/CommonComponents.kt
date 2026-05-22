@@ -73,8 +73,8 @@ fun QingLongDrawer(
         NavItem("task", "定时任务", Icons.Default.Schedule),
         NavItem("subscription", "订阅管理", Icons.Default.Subscriptions),
         NavItem("log", "日志管理", Icons.Default.Article),
-        NavItem("envvar", "环境变量", Icons.Default.Variable),
-        NavItem("system", "系统状态", Icons.Default.MonitorHeart),
+        NavItem("envvar", "环境变量", Icons.Default.Code),
+        NavItem("system", "系统状态", Icons.Default.Info),
         NavItem("panel_settings", "面板设置", Icons.Default.Settings),
         NavItem("app_settings", "应用设置", Icons.Default.PhoneAndroid)
     )
@@ -121,6 +121,7 @@ fun QingLongDrawer(
 
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),
+            thickness = 0.5.dp,
             color = MaterialTheme.colorScheme.outlineVariant
         )
 
@@ -181,37 +182,6 @@ fun QingLongDrawer(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-    }
-}
-
-// ===================== Placeholder Screen =====================
-
-@Composable
-fun PlaceholderScreen(title: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.Construction,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "即将推出",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
-        }
     }
 }
 
@@ -283,6 +253,104 @@ fun EmptyView(message: String) {
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+// ===================== SearchBar =====================
+
+@Composable
+fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        placeholder = { Text("搜索任务名称...") },
+        leadingIcon = {
+            Icon(Icons.Default.Search, contentDescription = null)
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = onClear) {
+                    Icon(Icons.Default.Clear, contentDescription = "清除")
+                }
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = QingLongGreen,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        )
+    )
+}
+
+// ===================== BatchActionBar =====================
+
+@Composable
+fun BatchActionBar(
+    selectedCount: Int,
+    onEnableAll: () -> Unit,
+    onDisableAll: () -> Unit,
+    onDeleteAll: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "已选 $selectedCount 项",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilledTonalButton(
+                    onClick = onEnableAll,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = QingLongGreen.copy(alpha = 0.15f)
+                    )
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("启用", style = MaterialTheme.typography.labelSmall)
+                }
+                FilledTonalButton(
+                    onClick = onDisableAll,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = StatusWarning.copy(alpha = 0.15f)
+                    )
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("禁用", style = MaterialTheme.typography.labelSmall)
+                }
+                FilledTonalButton(
+                    onClick = onDeleteAll,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = StatusFailed.copy(alpha = 0.15f)
+                    )
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("删除", style = MaterialTheme.typography.labelSmall)
+                }
+            }
         }
     }
 }

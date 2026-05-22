@@ -76,9 +76,10 @@ class LoginViewModel @Inject constructor(
             try {
                 val loginRequest = LoginRequest(state.username, state.password)
                 val response = api.login(loginRequest)
+                val body = response.body()
 
-                if (response.code == 200 && response.data != null) {
-                    val token = response.data.token
+                if (response.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                    val token = body.data.token
                     authRepository.saveToken(token)
 
                     val serverConfig = ServerConfig(
@@ -97,7 +98,7 @@ class LoginViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = response.message ?: "登录失败 (code: ${response.code})"
+                            error = body?.message ?: "登录失败 (code: ${response.code()})"
                         )
                     }
                 }

@@ -78,27 +78,27 @@ fun QingLongNavHost() {
 
             // Placeholder routes — to be implemented in V1.0+
             composable(Screen.Subscription.route) {
-                com.qinglong.app.ui.screens.task.PlaceholderScreen("订阅管理")
+                com.qinglong.app.ui.screens.PlaceholderScreen("订阅管理")
             }
 
             composable(Screen.Log.route) {
-                com.qinglong.app.ui.screens.task.PlaceholderScreen("日志管理")
+                com.qinglong.app.ui.screens.PlaceholderScreen("日志管理")
             }
 
             composable(Screen.EnvVar.route) {
-                com.qinglong.app.ui.screens.task.PlaceholderScreen("环境变量")
+                com.qinglong.app.ui.screens.PlaceholderScreen("环境变量")
             }
 
             composable(Screen.System.route) {
-                com.qinglong.app.ui.screens.task.PlaceholderScreen("系统状态")
+                com.qinglong.app.ui.screens.PlaceholderScreen("系统状态")
             }
 
             composable(Screen.PanelSettings.route) {
-                com.qinglong.app.ui.screens.task.PlaceholderScreen("面板设置")
+                com.qinglong.app.ui.screens.PlaceholderScreen("面板设置")
             }
 
             composable(Screen.AppSettings.route) {
-                com.qinglong.app.ui.screens.task.PlaceholderScreen("应用设置")
+                com.qinglong.app.ui.screens.PlaceholderScreen("应用设置")
             }
         }
     }

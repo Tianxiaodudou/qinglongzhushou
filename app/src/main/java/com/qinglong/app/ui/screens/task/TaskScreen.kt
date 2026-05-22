@@ -73,7 +73,7 @@ fun TaskScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
+                TabRowDefaults.Indicator(
                     modifier = Modifier.tabIndicatorOffset(tabPositions[uiState.filterTab.ordinal]),
                     color = QingLongGreen
                 )

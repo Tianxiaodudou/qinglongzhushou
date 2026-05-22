@@ -85,8 +85,9 @@ class TaskRepository @Inject constructor(
     suspend fun getTasks(search: String? = null, filter: String? = null): Result<List<Task>> {
         return try {
             val resp = api.getTasks(search, filter)
-            if (resp.code == 200) Result.Success(resp.data() ?: emptyList())
-            else Result.Error(resp.code, resp.message() ?: "Unknown error")
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "Network error")
         }
@@ -95,8 +96,9 @@ class TaskRepository @Inject constructor(
     suspend fun runTask(id: String): Result<Unit> {
         return try {
             val resp = api.runTask(id)
-            if (resp.code == 200) Result.Success(Unit)
-            else Result.Error(resp.code, resp.message() ?: "Unknown error")
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "Network error")
         }
@@ -105,8 +107,42 @@ class TaskRepository @Inject constructor(
     suspend fun stopTask(id: String): Result<Unit> {
         return try {
             val resp = api.stopTask(id)
-            if (resp.code == 200) Result.Success(Unit)
-            else Result.Error(resp.code, resp.message() ?: "Unknown error")
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "Network error")
+        }
+    }
+
+    suspend fun enableTasks(ids: List<String>): Result<Unit> {
+        return try {
+            val resp = api.enableTasks(ids.joinToString(","))
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "Network error")
+        }
+    }
+
+    suspend fun disableTasks(ids: List<String>): Result<Unit> {
+        return try {
+            val resp = api.disableTasks(ids.joinToString(","))
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "Network error")
+        }
+    }
+
+    suspend fun deleteTask(id: String): Result<Unit> {
+        return try {
+            val resp = api.deleteTask(id)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "Network error")
         }
@@ -120,8 +156,9 @@ class SubscriptionRepository @Inject constructor(
     suspend fun getSubscriptions(search: String? = null): Result<List<Subscription>> {
         return try {
             val resp = api.getSubscriptions(search)
-            if (resp.code == 200) Result.Success(resp.data() ?: emptyList())
-            else Result.Error(resp.code, resp.message() ?: "Unknown error")
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "Network error")
         }
@@ -140,8 +177,9 @@ class LogRepository @Inject constructor(
     ): Result<List<TaskLog>> {
         return try {
             val resp = api.getLogs(taskId, search, page, pageSize)
-            if (resp.code == 200) Result.Success(resp.data() ?: emptyList())
-            else Result.Error(resp.code, resp.message() ?: "Unknown error")
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "Network error")
         }
@@ -155,8 +193,9 @@ class EnvVariableRepository @Inject constructor(
     suspend fun getEnvVariables(search: String? = null, type: String? = null): Result<List<EnvVariable>> {
         return try {
             val resp = api.getEnvVariables(search, type)
-            if (resp.code == 200) Result.Success(resp.data() ?: emptyList())
-            else Result.Error(resp.code, resp.message() ?: "Unknown error")
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "Network error")
         }
@@ -170,8 +209,9 @@ class SystemRepository @Inject constructor(
     suspend fun getSystemStatus(): Result<SystemStatus> {
         return try {
             val resp = api.getSystemStatus()
-            if (resp.code == 200) Result.Success(resp.data!!)
-            else Result.Error(resp.code, resp.message() ?: "Unknown error")
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) Result.Success(body.data)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "Network error")
         }

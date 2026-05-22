@@ -116,7 +116,7 @@ class TaskViewModel @Inject constructor(
 
     fun enableTask(taskId: String) {
         viewModelScope.launch {
-            when (taskRepository.enableTasks(taskId)) {
+            when (taskRepository.enableTasks(listOf(taskId))) {
                 is Result.Success -> loadTasks()
                 is Result.Error -> { }
             }
@@ -125,7 +125,7 @@ class TaskViewModel @Inject constructor(
 
     fun disableTask(taskId: String) {
         viewModelScope.launch {
-            when (taskRepository.disableTasks(taskId)) {
+            when (taskRepository.disableTasks(listOf(taskId))) {
                 is Result.Success -> loadTasks()
                 is Result.Error -> { }
             }
@@ -136,7 +136,7 @@ class TaskViewModel @Inject constructor(
         val ids = _uiState.value.selectedTaskIds
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            when (taskRepository.enableTasks(ids.joinToString(","))) {
+            when (taskRepository.enableTasks(ids.toList())) {
                 is Result.Success -> {
                     _uiState.update { it.copy(isBatchMode = false, selectedTaskIds = emptySet()) }
                     loadTasks()
@@ -150,7 +150,7 @@ class TaskViewModel @Inject constructor(
         val ids = _uiState.value.selectedTaskIds
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            when (taskRepository.disableTasks(ids.joinToString(","))) {
+            when (taskRepository.disableTasks(ids.toList())) {
                 is Result.Success -> {
                     _uiState.update { it.copy(isBatchMode = false, selectedTaskIds = emptySet()) }
                     loadTasks()

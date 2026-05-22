@@ -2,6 +2,14 @@ package com.qinglong.app.data.model
 
 import com.google.gson.annotations.SerializedName
 
+// ===================== Generic API Response =====================
+
+data class ApiResponse<T>(
+    val code: Int,
+    val data: T?,
+    val message: String
+)
+
 // ===================== Auth =====================
 
 data class LoginRequest(
