@@ -107,14 +107,14 @@ fun LoginScreen(
                         .padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // HTTP / HTTPS Switch
+                    // HTTP / HTTPS Switch (默认 HTTP)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "使用 HTTPS",
+                            text = "HTTPS",
                             style = MaterialTheme.typography.bodyLarge,
                             color = QingLongOnSurface
                         )

@@ -1,6 +1,7 @@
 package com.qinglong.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,7 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.qinglong.app.ui.theme.*
 
@@ -54,7 +57,7 @@ fun QingLongTopBar(
 data class NavItem(
     val route: String,
     val title: String,
-    val icon: @Composable () -> Unit
+    val icon: ImageVector
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,16 +70,16 @@ fun QingLongDrawer(
     modifier: Modifier = Modifier
 ) {
     val navItems = listOf(
-        NavItem("task", "定时任务") { Icon(Icons.Default.Schedule, null) },
-        NavItem("subscription", "订阅管理") { Icon(Icons.Default.Subscriptions, null) },
-        NavItem("log", "日志管理") { Icon(Icons.Default.Article, null) },
-        NavItem("envvar", "环境变量") { Icon(Icons.Default.Variable, null) },
-        NavItem("system", "系统状态") { Icon(Icons.Default.Monitor, null) },
-        NavItem("panel_settings", "面板设置") { Icon(Icons.Default.Settings, null) },
-        NavItem("app_settings", "应用设置") { Icon(Icons.Default.PhoneAndroid, null) }
+        NavItem("task", "定时任务", Icons.Default.Schedule),
+        NavItem("subscription", "订阅管理", Icons.Default.Subscriptions),
+        NavItem("log", "日志管理", Icons.Default.Article),
+        NavItem("envvar", "环境变量", Icons.Default.Variable),
+        NavItem("system", "系统状态", Icons.Default.MonitorHeart),
+        NavItem("panel_settings", "面板设置", Icons.Default.Settings),
+        NavItem("app_settings", "应用设置", Icons.Default.PhoneAndroid)
     )
 
-    ModalDrawerSheet(modifier = modifier) {
+    ModalDrawerSheet(modifier = modifier.width(300.dp)) {
         Spacer(modifier = Modifier.height(24.dp))
 
         // User Header
@@ -90,20 +93,22 @@ fun QingLongDrawer(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(QingLongGreen),
+                    .background(QingLongGreen.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = username.firstOrNull()?.uppercase() ?: "A",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = QingLongGreen,
+                    modifier = Modifier.size(28.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
                     text = username,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
@@ -114,152 +119,111 @@ fun QingLongDrawer(
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
 
-        // Nav Items
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Navigation Items
         navItems.forEach { item ->
+            val isSelected = currentRoute == item.route
             NavigationDrawerItem(
-                label = { Text(item.title) },
-                selected = currentRoute == item.route,
+                icon = {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = null,
+                        tint = if (isSelected) QingLongGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                label = {
+                    Text(
+                        text = item.title,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (isSelected) QingLongGreen else MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                selected = isSelected,
                 onClick = { onNavigate(item.route) },
-                icon = { item.icon() },
+                modifier = Modifier.padding(horizontal = 12.dp),
                 colors = NavigationDrawerItemDefaults.colors(
-                    selectedContainerColor = QingLongGreen.copy(alpha = 0.12f),
-                    selectedTextColor = QingLongGreen,
-                    selectedIconColor = QingLongGreen
-                ),
-                modifier = Modifier.padding(horizontal = 12.dp)
+                    selectedContainerColor = QingLongGreen.copy(alpha = 0.08f),
+                    unselectedContainerColor = Color.Transparent
+                )
             )
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
+        // Logout
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
         NavigationDrawerItem(
-            label = { Text("退出登录", color = StatusFailed) },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Logout,
+                    contentDescription = null,
+                    tint = StatusFailed
+                )
+            },
+            label = {
+                Text(
+                    text = "退出登录",
+                    color = StatusFailed
+                )
+            },
             selected = false,
             onClick = onLogout,
-            icon = { Icon(Icons.Default.Logout, null, tint = StatusFailed) },
-            colors = NavigationDrawerItemDefaults.colors(
-                selectedContainerColor = StatusFailed.copy(alpha = 0.08f),
-                selectedTextColor = StatusFailed,
-                selectedIconColor = StatusFailed
-            ),
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
-// ===================== Task Card =====================
+// ===================== Placeholder Screen =====================
 
 @Composable
-fun TaskCard(
-    name: String,
-    schedule: String,
-    isRunning: Boolean,
-    isDisabled: Boolean,
-    lastRunTime: String?,
-    execStatus: ExecStatus?,
-    onRun: () -> Unit,
-    onStop: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Status indicator
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(
-                        when {
-                            isRunning -> StatusRunning
-                            isDisabled -> StatusStopped
-                            execStatus == ExecStatus.SUCCESS -> StatusSuccess
-                            execStatus == ExecStatus.FAILED -> StatusFailed
-                            else -> StatusStopped
-                        }
-                    )
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isDisabled) StatusStopped else MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = schedule,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                lastRunTime?.let {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "上次: $it",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (isRunning) {
-                IconButton(onClick = onStop) {
-                    Icon(
-                        Icons.Default.Stop,
-                        contentDescription = "停止",
-                        tint = StatusFailed
-                    )
-                }
-            } else {
-                IconButton(onClick = onRun) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = "运行",
-                        tint = QingLongGreen
-                    )
-                }
-            }
-        }
-    }
-}
-
-enum class ExecStatus { SUCCESS, FAILED }
-
-// ===================== Loading / Error States =====================
-
-@Composable
-fun LoadingView(message: String = "加载中…") {
+fun PlaceholderScreen(title: String) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = QingLongGreen)
+            Icon(
+                imageVector = Icons.Default.Construction,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "即将推出",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
         }
+    }
+}
+
+// ===================== Loading / Error / Empty =====================
+
+@Composable
+fun LoadingView() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(color = QingLongGreen)
     }
 }
 
@@ -274,22 +238,26 @@ fun ErrorView(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Default.ErrorOutline,
+                imageVector = Icons.Default.ErrorOutline,
                 contentDescription = null,
-                tint = StatusFailed,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(64.dp),
+                tint = StatusFailed
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = onRetry,
                 colors = ButtonDefaults.buttonColors(containerColor = QingLongGreen)
             ) {
+                Icon(Icons.Default.Refresh, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
                 Text("重试")
             }
         }
@@ -297,22 +265,22 @@ fun ErrorView(
 }
 
 @Composable
-fun EmptyView(message: String = "暂无数据") {
+fun EmptyView(message: String) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Default.Inbox,
+                imageVector = Icons.Default.Inbox,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

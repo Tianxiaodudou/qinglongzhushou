@@ -15,7 +15,10 @@ data class TaskUiState(
     val error: String? = null,
     val tasks: List<Task> = emptyList(),
     val searchQuery: String = "",
-    val filterTab: TaskFilterTab = TaskFilterTab.ALL
+    val showSearch: Boolean = false,
+    val filterTab: TaskFilterTab = TaskFilterTab.ALL,
+    val isBatchMode: Boolean = false,
+    val selectedTaskIds: Set<String> = emptySet()
 )
 
 enum class TaskFilterTab { ALL, RUNNING, STOPPED }
@@ -56,6 +59,33 @@ class TaskViewModel @Inject constructor(
         }
     }
 
+    fun toggleSearch() {
+        _uiState.update {
+            it.copy(
+                showSearch = !it.showSearch,
+                searchQuery = if (it.showSearch) "" else it.searchQuery
+            )
+        }
+        if (!_uiState.value.showSearch) loadTasks()
+    }
+
+    fun toggleBatchMode() {
+        _uiState.update {
+            it.copy(
+                isBatchMode = !it.isBatchMode,
+                selectedTaskIds = emptySet()
+            )
+        }
+    }
+
+    fun toggleTaskSelection(taskId: String) {
+        _uiState.update {
+            val newSet = it.selectedTaskIds.toMutableSet()
+            if (taskId in newSet) newSet.remove(taskId) else newSet.add(taskId)
+            it.copy(selectedTaskIds = newSet)
+        }
+    }
+
     fun setFilterTab(tab: TaskFilterTab) {
         _uiState.update { it.copy(filterTab = tab) }
         loadTasks()
@@ -81,6 +111,64 @@ class TaskViewModel @Inject constructor(
                 is Result.Success -> loadTasks()
                 is Result.Error -> { /* TODO: show error toast */ }
             }
+        }
+    }
+
+    fun enableTask(taskId: String) {
+        viewModelScope.launch {
+            when (taskRepository.enableTasks(taskId)) {
+                is Result.Success -> loadTasks()
+                is Result.Error -> { }
+            }
+        }
+    }
+
+    fun disableTask(taskId: String) {
+        viewModelScope.launch {
+            when (taskRepository.disableTasks(taskId)) {
+                is Result.Success -> loadTasks()
+                is Result.Error -> { }
+            }
+        }
+    }
+
+    fun batchEnable() {
+        val ids = _uiState.value.selectedTaskIds
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            when (taskRepository.enableTasks(ids.joinToString(","))) {
+                is Result.Success -> {
+                    _uiState.update { it.copy(isBatchMode = false, selectedTaskIds = emptySet()) }
+                    loadTasks()
+                }
+                is Result.Error -> { }
+            }
+        }
+    }
+
+    fun batchDisable() {
+        val ids = _uiState.value.selectedTaskIds
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            when (taskRepository.disableTasks(ids.joinToString(","))) {
+                is Result.Success -> {
+                    _uiState.update { it.copy(isBatchMode = false, selectedTaskIds = emptySet()) }
+                    loadTasks()
+                }
+                is Result.Error -> { }
+            }
+        }
+    }
+
+    fun batchDelete() {
+        val ids = _uiState.value.selectedTaskIds
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            for (id in ids) {
+                taskRepository.deleteTask(id)
+            }
+            _uiState.update { it.copy(isBatchMode = false, selectedTaskIds = emptySet()) }
+            loadTasks()
         }
     }
 }

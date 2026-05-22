@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.qinglong.app"
-        minSdk = 26
+        minSdk = 34
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"

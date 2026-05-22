@@ -9,10 +9,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.qinglong.app.data.repository.AuthRepository
+import com.qinglong.app.ui.components.QingLongDrawer
 import com.qinglong.app.ui.navigation.Screen
+import com.qinglong.app.ui.navigation.mainDestinations
 import com.qinglong.app.ui.screens.login.LoginScreen
 import com.qinglong.app.ui.screens.login.LoginViewModel
 import com.qinglong.app.ui.screens.task.TaskScreen
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,11 +28,29 @@ fun QingLongNavHost() {
     val scope = rememberCoroutineScope()
 
     val startDestination = if (isLoggedIn) Screen.Task.route else Screen.Login.route
+    val currentRoute = navController.currentBackStackEntryFlow.collectAsState(initial = null).value?.destination?.route ?: ""
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            // Drawer content is managed per-screen to share state cleanly
+            QingLongDrawer(
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    scope.launch { drawerState.close() }
+                    navController.navigate(route) {
+                        popUpTo(Screen.Task.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onLogout = {
+                    scope.launch { drawerState.close() }
+                    authViewModel.logout()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
     ) {
         NavHost(
@@ -49,11 +70,13 @@ fun QingLongNavHost() {
 
             composable(Screen.Task.route) {
                 TaskScreen(
-                    onMenuClick = { /* open drawer */ }
+                    onMenuClick = {
+                        scope.launch { drawerState.open() }
+                    }
                 )
             }
 
-            // Placeholder routes — to be implemented
+            // Placeholder routes — to be implemented in V1.0+
             composable(Screen.Subscription.route) {
                 com.qinglong.app.ui.screens.task.PlaceholderScreen("订阅管理")
             }

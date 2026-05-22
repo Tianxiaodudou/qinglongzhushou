@@ -17,7 +17,7 @@ data class LoginUiState(
     val error: String? = null,
     val success: Boolean = false,
     // Form fields
-    val isHttps: Boolean = true,
+    val isHttps: Boolean = false,
     val domain: String = "",
     val port: String = "5700",
     val username: String = "",

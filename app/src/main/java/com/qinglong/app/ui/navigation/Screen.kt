@@ -26,7 +26,7 @@ val mainDestinations = listOf(
     NavDestination(Screen.Subscription.route, "订阅管理", Icons.Default.Subscriptions),
     NavDestination(Screen.Log.route, "日志管理", Icons.Default.Article),
     NavDestination(Screen.EnvVar.route, "环境变量", Icons.Default.Variable),
-    NavDestination(Screen.System.route, "系统状态", Icons.Default.Monitor),
+    NavDestination(Screen.System.route, "系统状态", Icons.Default.MonitorHeart),
     NavDestination(Screen.PanelSettings.route, "面板设置", Icons.Default.Settings),
     NavDestination(Screen.AppSettings.route, "应用设置", Icons.Default.PhoneAndroid)
 )
