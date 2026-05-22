@@ -60,9 +60,10 @@ jobs:
       - name: Prepare release info
         id: release
         run: |
-          BUILD_DATE=$(date +'%Y%m%d-%H%M')
-          TAG="v${APP_VERSION}-${BUILD_DATE}"
           APK_FILE=$(ls *.apk | head -1)
+          # 从APK文件名中提取时间戳: 青龙助手-v1.0.0-20260522-2245.apk → 20260522-2245
+          BUILD_DATE=$(echo "$APK_FILE" | grep -oP '\d{8}-\d{4}')
+          TAG="v${APP_VERSION}-${BUILD_DATE}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "name=${APP_NAME} v${APP_VERSION}" >> $GITHUB_OUTPUT
           echo "apk_file=${APK_FILE}" >> $GITHUB_OUTPUT
