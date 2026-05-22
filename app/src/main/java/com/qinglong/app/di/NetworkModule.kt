@@ -1,6 +1,7 @@
 package com.qinglong.app.di
 
 import android.content.Context
+import com.qinglong.app.data.api.ApiManager
 import com.qinglong.app.data.api.AuthInterceptor
 import com.qinglong.app.data.api.LiveLoggingInterceptor
 import com.qinglong.app.data.api.QingLongApi
@@ -52,22 +53,8 @@ object NetworkModule {
             .build()
     }
 
-    @Provides
-    @Singleton
-    fun provideQingLongApi(
-        okHttpClient: OkHttpClient
-    ): QingLongApi {
-        // 初始使用占位 URL，登录后通过 LoginViewModel 动态重建
-        val placeholderRetrofit = Retrofit.Builder()
-            .baseUrl("https://placeholder.local/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        return placeholderRetrofit.create(QingLongApi::class.java)
-    }
-
     /**
-     * 根据服务器配置动态创建新的 Retrofit 和 QingLongApi 实例
+     * 根据服务器配置动态创建 Retrofit 和 QingLongApi 实例
      */
     fun createApi(
         protocol: String,

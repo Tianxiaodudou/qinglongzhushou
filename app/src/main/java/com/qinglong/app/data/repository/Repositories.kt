@@ -3,6 +3,7 @@ package com.qinglong.app.data.repository
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.qinglong.app.data.api.ApiManager
 import com.qinglong.app.data.api.QingLongApi
 import com.qinglong.app.data.model.*
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -78,10 +79,16 @@ class AuthRepository @Inject constructor(
     }
 }
 
+/**
+ * 所有 Repository 通过 ApiManager 获取正确的 API 实例
+ */
 @Singleton
 class TaskRepository @Inject constructor(
-    private val api: QingLongApi
+    private val apiManager: ApiManager
 ) {
+    private val api: QingLongApi get() = apiManager.getApi()
+        ?: throw IllegalStateException("ApiManager not initialized - please login first")
+
     suspend fun getTasks(search: String? = null, filter: String? = null): Result<List<Task>> {
         return try {
             val resp = api.getTasks(search, filter)
@@ -151,8 +158,11 @@ class TaskRepository @Inject constructor(
 
 @Singleton
 class SubscriptionRepository @Inject constructor(
-    private val api: QingLongApi
+    private val apiManager: ApiManager
 ) {
+    private val api: QingLongApi get() = apiManager.getApi()
+        ?: throw IllegalStateException("ApiManager not initialized - please login first")
+
     suspend fun getSubscriptions(search: String? = null): Result<List<Subscription>> {
         return try {
             val resp = api.getSubscriptions(search)
@@ -167,8 +177,11 @@ class SubscriptionRepository @Inject constructor(
 
 @Singleton
 class LogRepository @Inject constructor(
-    private val api: QingLongApi
+    private val apiManager: ApiManager
 ) {
+    private val api: QingLongApi get() = apiManager.getApi()
+        ?: throw IllegalStateException("ApiManager not initialized - please login first")
+
     suspend fun getLogs(
         taskId: String? = null,
         search: String? = null,
@@ -188,8 +201,11 @@ class LogRepository @Inject constructor(
 
 @Singleton
 class EnvVariableRepository @Inject constructor(
-    private val api: QingLongApi
+    private val apiManager: ApiManager
 ) {
+    private val api: QingLongApi get() = apiManager.getApi()
+        ?: throw IllegalStateException("ApiManager not initialized - please login first")
+
     suspend fun getEnvVariables(search: String? = null, type: String? = null): Result<List<EnvVariable>> {
         return try {
             val resp = api.getEnvVariables(search, type)
@@ -204,8 +220,11 @@ class EnvVariableRepository @Inject constructor(
 
 @Singleton
 class SystemRepository @Inject constructor(
-    private val api: QingLongApi
+    private val apiManager: ApiManager
 ) {
+    private val api: QingLongApi get() = apiManager.getApi()
+        ?: throw IllegalStateException("ApiManager not initialized - please login first")
+
     suspend fun getSystemStatus(): Result<SystemStatus> {
         return try {
             val resp = api.getSystemStatus()

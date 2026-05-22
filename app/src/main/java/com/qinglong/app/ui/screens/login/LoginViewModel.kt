@@ -2,6 +2,7 @@ package com.qinglong.app.ui.screens.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.qinglong.app.data.api.ApiManager
 import com.qinglong.app.data.model.LoginRequest
 import com.qinglong.app.data.model.ServerConfig
 import com.qinglong.app.data.repository.AuthRepository
@@ -29,7 +30,8 @@ data class LoginUiState(
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val okHttpClient: OkHttpClient
+    private val okHttpClient: OkHttpClient,
+    private val apiManager: ApiManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -95,7 +97,10 @@ class LoginViewModel @Inject constructor(
                 if (response.isSuccessful && body != null && body.code == 200 && body.data != null) {
                     val token = body.data.token
                     authRepository.saveToken(token)
-                    LiveLogger.i("Login", "登录成功, token=${token.take(20)}...")
+
+                    // 通过 ApiManager 设置正确的 API 实例，让所有 Repository 都能用
+                    apiManager.createAndSetApi(protocol, state.domain, port)
+                    LiveLogger.i("Login", "登录成功, ApiManager已设置, token=${token.take(20)}...")
 
                     val serverConfig = ServerConfig(
                         id = UUID.randomUUID().toString(),
