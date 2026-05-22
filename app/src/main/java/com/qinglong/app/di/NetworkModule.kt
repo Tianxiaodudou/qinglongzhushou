@@ -50,27 +50,33 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(
-        okHttpClient: OkHttpClient,
-        authRepository: AuthRepository
-    ): Retrofit {
-        val server = authRepository.currentServer.value
-        val baseUrl = if (server != null) {
-            "${server.protocol}://${server.domain}:${server.port}/"
-        } else {
-            "https://localhost/"
-        }
+    fun provideQingLongApi(
+        okHttpClient: OkHttpClient
+    ): QingLongApi {
+        // 初始使用占位 URL，登录后通过 LoginViewModel 动态重建
+        val placeholderRetrofit = Retrofit.Builder()
+            .baseUrl("https://placeholder.local/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+        return placeholderRetrofit.create(QingLongApi::class.java)
+    }
 
-        return Retrofit.Builder()
+    /**
+     * 根据服务器配置动态创建新的 Retrofit 和 QingLongApi 实例
+     */
+    fun createApi(
+        protocol: String,
+        domain: String,
+        port: Int,
+        okHttpClient: OkHttpClient
+    ): QingLongApi {
+        val baseUrl = "${protocol}://${domain}:${port}/"
+        val retrofit = Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideQingLongApi(retrofit: Retrofit): QingLongApi {
         return retrofit.create(QingLongApi::class.java)
     }
 }

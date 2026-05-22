@@ -249,7 +249,7 @@ fun LoginScreen(
                         Text(
                             text = error,
                             style = MaterialTheme.typography.bodySmall,
-                            color = StatusFailed,
+                            color = MaterialTheme.colorScheme.error,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
