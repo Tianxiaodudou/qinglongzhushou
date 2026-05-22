@@ -48,12 +48,10 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew assembleDebug
 
-      - name: Rename APK with version and date
+      - name: Rename APK with build info
         run: |
           BUILD_DATE=$(date +'%Y%m%d-%H%M')
-          cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/${APP_NAME}-v${APP_VERSION}-${BUILD_DATE}.apk"
-          echo "BUILD_DATE=${BUILD_DATE}" >> $GITHUB_ENV
-          echo "APK_NAME=${APP_NAME}-v${APP_VERSION}-${BUILD_DATE}.apk" >> $GITHUB_ENV
+          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/${APP_NAME}-v${APP_VERSION}-${BUILD_DATE}.apk"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -75,52 +73,46 @@ jobs:
         with:
           name: app-debug-v1.0
 
-      - name: Get version info
-        id: version
+      - name: Prepare release info
+        id: release
         run: |
           BUILD_DATE=$(date +'%Y%m%d-%H%M')
+          TAG="v${APP_VERSION}-${BUILD_DATE}"
           APK_FILE=$(ls *.apk | head -1)
-          echo "tag=v${APP_VERSION}-${BUILD_DATE}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "name=${APP_NAME} v${APP_VERSION}" >> $GITHUB_OUTPUT
           echo "apk_file=${APK_FILE}" >> $GITHUB_OUTPUT
 
-      - name: Read changelog
-        id: changelog
+      - name: Generate release body
+        id: body
         run: |
-          if [ -f CHANGELOG.md ]; then
-            # 提取最新版本的更新日志
-            python3 -c "
-import re
-with open('CHANGELOG.md', 'r') as f:
-    content = f.read()
-# 找到第一个版本标题和第二个版本标题之间的内容
-match = re.search(r'## v[\d.]+.*?\n(.*?)(?=\n## |\Z)', content, re.DOTALL)
-if match:
-    print(match.group(1).strip())
-else:
-    print('暂无更新日志')
-" > /tmp/release_body.txt
-          else
-            echo "首次发布" > /tmp/release_body.txt
-          fi
+          cat > /tmp/release_body.md << 'RELEOF'
+          ## 青龙助手 v1.0.0
+
+          ### 更新内容
+          - 🔐 登录界面（支持 HTTP/HTTPS，服务器配置）
+          - 📋 定时任务管理（搜索、标签筛选、批量操作）
+          - 🧭 左侧弹出式导航栏（7个模块入口）
+          - ⚙️ 全局顶栏
+          - 💥 崩溃日志捕获（下次启动时弹窗显示错误详情）
+          - 👁️ 密码输入框小眼睛可切换明文显示
+          - 🔒 固定应用签名（支持覆盖安装）
+          - 📝 APK 文件名带版本号和编译时间
+
+          ### 下载
+          - APK: app-debug.apk
+          - 编译时间: ${{ steps.release.outputs.tag }}
+          RELEOF
           echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/release_body.txt >> $GITHUB_OUTPUT
+          cat /tmp/release_body.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.name }}
-          body: |
-            ## ${{ steps.version.outputs.name }}
-
-            ### 更新内容
-            ${{ steps.changelog.outputs.body }}
-
-            ### 下载
-            - APK 文件: ${{ steps.version.outputs.apk_file }}
-            - 编译时间: ${{ steps.version.outputs.tag }}
-          files: ${{ steps.version.outputs.apk_file }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.name }}
+          body_path: /tmp/release_body.md
+          files: ${{ steps.release.outputs.apk_file }}
           draft: false
           prerelease: false

@@ -13,7 +13,7 @@ android {
         applicationId = "com.qinglong.app"
         minSdk = 34
         targetSdk = 34
-        versionCode = System.currentTimeMillis().toInt() / 1000
+        versionCode = (System.currentTimeMillis() / 1000 % 1000000).toInt()
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -39,9 +39,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("release")
         }
     }
 
