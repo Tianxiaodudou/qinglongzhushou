@@ -20,11 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.qinglong.app.ui.theme.*
 
 @Composable
 fun LoginScreen(
@@ -45,7 +43,10 @@ fun LoginScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(QingLongBackground, QingLongSurface)
+                    colors = listOf(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surface
+                    )
                 )
             )
     ) {
@@ -63,7 +64,7 @@ fun LoginScreen(
                 modifier = Modifier
                     .size(80.dp)
                     .background(
-                        color = QingLongGreen.copy(alpha = 0.15f),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(20.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -71,7 +72,7 @@ fun LoginScreen(
                 Icon(
                     imageVector = Icons.Default.Terminal,
                     contentDescription = null,
-                    tint = QingLongGreen,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -82,13 +83,13 @@ fun LoginScreen(
                 text = "青龙助手",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = QingLongOnSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = "登录到青龙面板",
                 style = MaterialTheme.typography.bodyMedium,
-                color = QingLongOnSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(48.dp))
@@ -98,7 +99,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = QingLongSurface
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Column(
@@ -116,19 +117,19 @@ fun LoginScreen(
                         Text(
                             text = "HTTPS",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = QingLongOnSurface
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Switch(
                             checked = uiState.isHttps,
                             onCheckedChange = viewModel::updateHttps,
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = QingLongGreen,
-                                checkedTrackColor = QingLongGreen.copy(alpha = 0.4f)
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                             )
                         )
                     }
 
-                    Divider(color = QingLongSurfaceVariant, thickness = 0.5.dp)
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
 
                     // Domain
                     OutlinedTextField(
@@ -149,9 +150,11 @@ fun LoginScreen(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = QingLongGreen,
-                            focusedLabelColor = QingLongGreen,
-                            cursorColor = QingLongGreen
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
 
@@ -174,9 +177,11 @@ fun LoginScreen(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = QingLongGreen,
-                            focusedLabelColor = QingLongGreen,
-                            cursorColor = QingLongGreen
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
 
@@ -198,9 +203,11 @@ fun LoginScreen(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = QingLongGreen,
-                            focusedLabelColor = QingLongGreen,
-                            cursorColor = QingLongGreen
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
 
@@ -229,9 +236,11 @@ fun LoginScreen(
                             }
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = QingLongGreen,
-                            focusedLabelColor = QingLongGreen,
-                            cursorColor = QingLongGreen
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
 
@@ -257,14 +266,14 @@ fun LoginScreen(
                         enabled = !uiState.isLoading,
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = QingLongGreen,
-                            disabledContainerColor = QingLongGreen.copy(alpha = 0.4f)
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                         )
                     ) {
                         if (uiState.isLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = QingLongOnSurface,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 strokeWidth = 2.dp
                             )
                         } else {
@@ -291,7 +300,7 @@ fun LoginScreen(
                 Text(
                     text = "管理已保存的服务器",
                     style = MaterialTheme.typography.bodySmall,
-                    color = QingLongOnSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -300,7 +309,7 @@ fun LoginScreen(
             Text(
                 text = "青龙助手 v1.0.0  ·  Android 8.0+",
                 style = MaterialTheme.typography.bodySmall,
-                color = QingLongOnSurfaceVariant.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
         }
     }
