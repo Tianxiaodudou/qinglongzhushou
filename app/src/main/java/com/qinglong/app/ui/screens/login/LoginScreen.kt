@@ -52,6 +52,7 @@ fun LoginScreen(
                 )
             )
             .imePadding()
+            .statusBarsPadding()
     ) {
         Column(
             modifier = Modifier
