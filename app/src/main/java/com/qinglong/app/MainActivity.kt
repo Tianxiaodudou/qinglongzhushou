@@ -68,6 +68,8 @@ class MainActivity : ComponentActivity() {
                 if (showPermissionDialog && !loggerInitialized) {
                     StoragePermissionDialog(
                         onGranted = {
+                            // 获取权限后重新初始化，尝试写入 Download 目录
+                            LiveLogger.init(this@MainActivity)
                             loggerInitialized = true
                             showPermissionDialog = false
                             LiveLogger.i("App", "应用启动，存储权限已获取")

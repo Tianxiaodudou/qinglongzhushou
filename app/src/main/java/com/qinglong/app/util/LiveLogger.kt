@@ -9,7 +9,8 @@ import java.util.Locale
 
 /**
  * 实时运行日志记录器
- * 将日志写入 /storage/emulated/0/Download/qinglong.txt
+ * 优先写入 Download/qinglong.txt（需要存储权限）
+ * 如果没有权限则回退到应用内部存储（无需权限）
  * 每次启动只保留最近一次运行的日志
  */
 object LiveLogger {
@@ -23,16 +24,33 @@ object LiveLogger {
      */
     fun init(context: Context) {
         try {
+            // 优先尝试写入 Download 目录
             val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (!downloadDir.exists()) {
-                downloadDir.mkdirs()
+            if (downloadDir.exists() || downloadDir.mkdirs()) {
+                val file = File(downloadDir, LOG_FILE_NAME)
+                try {
+                    file.writeText("")
+                    logFile = file
+                    enabled = true
+                    i("LiveLogger", "日志文件初始化完成: ${file.absolutePath}")
+                    return
+                } catch (_: Exception) {
+                    // 没权限，fall through 到内部存储
+                }
             }
-            val file = File(downloadDir, LOG_FILE_NAME)
-            // 覆盖写入，只保留本次运行日志
+        } catch (_: Exception) {
+            // 忽略
+        }
+
+        // 回退到应用内部存储（无需权限）
+        try {
+            val internalDir = File(context.filesDir, "logs")
+            internalDir.mkdirs()
+            val file = File(internalDir, LOG_FILE_NAME)
             file.writeText("")
             logFile = file
             enabled = true
-            i("LiveLogger", "日志文件初始化完成: ${file.absolutePath}")
+            i("LiveLogger", "日志文件初始化完成（内部存储）: ${file.absolutePath}")
         } catch (e: Exception) {
             enabled = false
             android.util.Log.e("LiveLogger", "初始化日志文件失败: ${e.message}")
