@@ -13,6 +13,7 @@ val QingLongOnSurfaceVariant = Color(0xFFB0B0B0)
 
 // Status Colors
 val StatusRunning = Color(0xFF00D9A6)
+val StatusIdle = Color(0xFF4A90D9)    // 蓝色-空闲中
 val StatusStopped = Color(0xFF6C757D)
 val StatusSuccess = Color(0xFF00D9A6)
 val StatusFailed = Color(0xFFFF6B6B)

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.qinglong.app.ui.navigation
 
 import androidx.compose.material.icons.Icons

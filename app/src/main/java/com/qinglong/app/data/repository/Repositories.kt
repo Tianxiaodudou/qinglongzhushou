@@ -3,9 +3,12 @@ package com.qinglong.app.data.repository
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.qinglong.app.data.api.ApiManager
 import com.qinglong.app.data.api.QingLongApi
 import com.qinglong.app.data.model.*
+import com.qinglong.app.util.LiveLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,62 +29,198 @@ class AuthRepository @Inject constructor(
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
-    private val authPrefs = EncryptedSharedPreferences.create(
+    private val securePrefs = EncryptedSharedPreferences.create(
         context,
-        "auth_prefs",
+        "secure_prefs",
         masterKey,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
-    private val _currentServer = MutableStateFlow(loadCurrentServer())
-    val currentServer: StateFlow<ServerConfig?> = _currentServer.asStateFlow()
+    private val serverPrefs = context.getSharedPreferences("server_prefs", Context.MODE_PRIVATE)
+    private val gson = Gson()
+    private val SERVERS_KEY = "servers_json"
 
-    private val _isLoggedIn = MutableStateFlow(getToken() != null)
-    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
-
-    fun getToken(): String? = authPrefs.getString("token", null)
-
-    fun saveToken(token: String) {
-        authPrefs.edit().putString("token", token).apply()
-        _isLoggedIn.value = true
+    init {
+        migrateIfNeeded()
     }
 
-    fun clearAuth() {
-        authPrefs.edit().clear().apply()
+    /**
+     * 从旧版存储格式迁移到新的 JSON 数组格式
+     * 旧格式：多个独立 key（server_id, server_domain, ...）
+     * 新格式：servers_json = "[{...}]"
+     */
+    private fun migrateIfNeeded() {
+        LiveLogger.i("AuthRepo", "检查是否需要迁移...")
+        if (getServers().isNotEmpty()) {
+            LiveLogger.i("AuthRepo", "已有新格式数据，跳过迁移")
+            return
+        }
+
+        val oldDomain = serverPrefs.getString("server_domain", null)
+        if (oldDomain == null) {
+            LiveLogger.i("AuthRepo", "无旧格式数据，无需迁移")
+            return
+        }
+        val oldId = serverPrefs.getString("server_id", null) ?: return
+
+        LiveLogger.i("AuthRepo", "发现旧格式数据: $oldDomain, 开始迁移...")
+        val oldPassword = securePrefs.getString("password", null)
+
+        val oldServer = ServerConfig(
+            id = oldId,
+            name = serverPrefs.getString("server_name", oldDomain) ?: oldDomain,
+            protocol = serverPrefs.getString("server_protocol", "http") ?: "http",
+            domain = oldDomain,
+            port = serverPrefs.getInt("server_port", 5700),
+            username = serverPrefs.getString("server_username", "") ?: "",
+            isDefault = serverPrefs.getBoolean("server_is_default", true)
+        )
+
+        serverPrefs.edit().putString(SERVERS_KEY, gson.toJson(listOf(oldServer))).apply()
+
+        // 迁移密码到新格式 key
+        if (!oldPassword.isNullOrBlank()) {
+            securePrefs.edit().putString("pass_$oldId", oldPassword).apply()
+            securePrefs.edit().remove("password").apply()
+        }
+
+        // 清理旧格式的独立 key
+        serverPrefs.edit().apply {
+            remove("server_id")
+            remove("server_name")
+            remove("server_protocol")
+            remove("server_domain")
+            remove("server_port")
+            remove("server_username")
+            remove("server_is_default")
+        }.apply()
+
+        LiveLogger.i("AuthRepo", "已迁移旧格式服务器配置: $oldDomain")
+    }
+
+    private val _currentServer = MutableStateFlow(getServers().firstOrNull())
+    val currentServer: StateFlow<ServerConfig?> = _currentServer.asStateFlow()
+
+    // 初始为 false（自动登录完成前不算已登录），autoLogin 完成后置为 true
+    private val _autoLoginComplete = MutableStateFlow(false)
+    private val _isLoggedIn = MutableStateFlow(false)
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+
+    fun markAutoLoginComplete() {
+        _autoLoginComplete.value = true
+        // 自动登录完成后：有 token 才算已登录
+        _isLoggedIn.value = getToken() != null
+        LiveLogger.i("AuthRepo", "自动登录流程结束, isLoggedIn=${_isLoggedIn.value}")
+    }
+
+    fun getToken(): String? = securePrefs.getString("token", null)
+
+    fun getPassword(serverId: String): String? = securePrefs.getString("pass_$serverId", null)
+
+    fun getPassword(): String? {
+        val s = loadCurrentServer() ?: return null
+        return getPassword(s.id)
+    }
+
+    fun getUsername(): String? = loadCurrentServer()?.username
+
+    fun saveToken(token: String) {
+        securePrefs.edit().putString("token", token).apply()
+    }
+
+    fun saveCredentials(username: String, password: String) {
+        val s = loadCurrentServer() ?: return
+        val servers = getServers().toMutableList()
+        val idx = servers.indexOfFirst { it.id == s.id }
+        if (idx >= 0) {
+            servers[idx] = servers[idx].copy(username = username)
+            serverPrefs.edit().putString(SERVERS_KEY, gson.toJson(servers)).apply()
+        }
+        securePrefs.edit().putString("pass_${s.id}", password).apply()
+    }
+
+    fun getServers(): List<ServerConfig> {
+        val json = serverPrefs.getString(SERVERS_KEY, null) ?: run {
+            LiveLogger.i("AuthRepo", "getServers: servers_json key 不存在")
+            return emptyList()
+        }
+        LiveLogger.i("AuthRepo", "getServers: json长度=${json.length}, 内容前80字符=${json.take(80)}")
+        return try {
+            val result: List<ServerConfig>? = gson.fromJson(json, object : TypeToken<List<ServerConfig>>() {}.type)
+            LiveLogger.i("AuthRepo", "getServers: 解析成功, 共 ${result?.size ?: 0} 条")
+            result ?: emptyList()
+        } catch (e: Exception) {
+            LiveLogger.e("AuthRepo", "getServers: 解析失败: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    fun saveServer(config: ServerConfig, password: String = "") {
+        val servers = getServers().toMutableList()
+        val key = "${config.protocol}://${config.domain}:${config.port}"
+        servers.removeAll { "${it.protocol}://${it.domain}:${it.port}" == key }
+        servers.add(0, config)
+        val json = gson.toJson(servers)
+        serverPrefs.edit().putString(SERVERS_KEY, json).apply()
+        if (password.isNotBlank()) {
+            securePrefs.edit().putString("pass_${config.id}", password).apply()
+        }
+        _currentServer.value = config
+        _isLoggedIn.value = true
+        LiveLogger.i("AuthRepo", "服务器已保存: $key, 密码${if (password.isNotBlank()) "已保存(长度${password.length})" else "未保存"}, 共 ${servers.size} 条, jsonLen=${json.length}")
+    }
+
+    fun deleteServer(serverId: String) {
+        val servers = getServers().toMutableList()
+        servers.removeAll { it.id == serverId }
+        serverPrefs.edit().putString(SERVERS_KEY, gson.toJson(servers)).apply()
+        securePrefs.edit().remove("pass_$serverId").apply()
+        val next = servers.firstOrNull()
+        _currentServer.value = next
+        _isLoggedIn.value = next != null
+    }
+
+    fun updateServer(old: ServerConfig, new: ServerConfig) {
+        val servers = getServers().toMutableList()
+        val idx = servers.indexOfFirst { it.id == old.id }
+        if (idx >= 0) {
+            servers[idx] = new
+            serverPrefs.edit().putString(SERVERS_KEY, gson.toJson(servers)).apply()
+            // 如果改了域名/协议/端口导致 serverId 变了，迁移密码
+            if (old.id != new.id) {
+                val oldPass = getPassword(old.id)
+                if (oldPass != null) {
+                    securePrefs.edit().putString("pass_${new.id}", oldPass).apply()
+                    securePrefs.edit().remove("pass_${old.id}").apply()
+                }
+            }
+            _currentServer.value = new
+            LiveLogger.i("AuthRepo", "服务器已更新: ${new.protocol}://${new.domain}:${new.port}")
+        }
+    }
+
+    fun savePassword(serverId: String, password: String) {
+        securePrefs.edit().putString("pass_$serverId", password).apply()
+    }
+
+    fun logout() {
+        securePrefs.edit().remove("token").apply()
         _isLoggedIn.value = false
     }
 
-    fun saveServer(config: ServerConfig) {
-        authPrefs.edit().apply {
-            putString("server_id", config.id)
-            putString("server_name", config.name)
-            putString("server_protocol", config.protocol)
-            putString("server_domain", config.domain)
-            putInt("server_port", config.port)
-            putString("server_username", config.username)
-            putBoolean("server_is_default", config.isDefault)
-        }.apply()
-        _currentServer.value = config
+    fun clearAuth() {
+        securePrefs.edit().clear().apply()
+        serverPrefs.edit().clear().apply()
+        _isLoggedIn.value = false
+        _currentServer.value = null
     }
 
-    private fun loadCurrentServer(): ServerConfig? {
-        val id = authPrefs.getString("server_id", null) ?: return null
-        return ServerConfig(
-            id = id,
-            name = authPrefs.getString("server_name", "") ?: "",
-            protocol = authPrefs.getString("server_protocol", "https") ?: "https",
-            domain = authPrefs.getString("server_domain", "") ?: "",
-            port = authPrefs.getInt("server_port", 5700),
-            username = authPrefs.getString("server_username", "") ?: "",
-            isDefault = authPrefs.getBoolean("server_is_default", false)
-        )
-    }
+    fun loadServerConfig(): ServerConfig? = getServers().firstOrNull()
+
+    private fun loadCurrentServer(): ServerConfig? = getServers().firstOrNull()
 }
 
-/**
- * 所有 Repository 通过 ApiManager 获取正确的 API 实例
- */
 @Singleton
 class TaskRepository @Inject constructor(
     private val apiManager: ApiManager
@@ -91,34 +230,77 @@ class TaskRepository @Inject constructor(
 
     suspend fun getTasks(search: String? = null, filter: String? = null): Result<List<Task>> {
         return try {
-            val resp = api.getTasks(search, filter)
+            val api = apiManager.getApi()
+            if (api == null) {
+                LiveLogger.e("Task", "ApiManager.getApi() 返回 null，未登录？")
+                return Result.Error(-1, "未登录，请先登录")
+            }
+            
+            val queryObj = mutableMapOf<String, Any?>(
+                "filters" to null,
+                "sorts" to null,
+                "filterRelation" to "and"
+            )
+            
+            if (filter != null) {
+                when (filter) {
+                    "running" -> {
+                        queryObj["filters"] = listOf(
+                            mapOf("property" to "status", "operation" to "In", "value" to "0,0.5")
+                        )
+                    }
+                    "stopped" -> {
+                        queryObj["filters"] = listOf(
+                            mapOf("property" to "isDisabled", "operation" to "In", "value" to "1")
+                        )
+                    }
+                }
+            }
+            
+            val queryString = com.google.gson.Gson().toJson(queryObj)
+            
+            LiveLogger.i("Task", "请求: searchValue=${search.orEmpty()}, filter=$filter, queryString=$queryString")
+            val resp = api.getTasks(
+                searchValue = search?.takeIf { it.isNotBlank() },
+                page = 1,
+                size = 200,
+                queryString = queryString
+            )
             val body = resp.body()
-            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+            LiveLogger.i("Task", "响应: code=${resp.code()}, body=${body != null}, bodyCode=${body?.code}, total=${body?.data?.total}")
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data?.data ?: emptyList())
+            } else {
+                val errMsg = "HTTP ${resp.code()} bodyCode=${body?.code} msg=${body?.message}"
+                LiveLogger.e("Task", errMsg)
+                Result.Error(body?.code ?: resp.code(), body?.message ?: errMsg)
+            }
         } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
+            val errMsg = e.message ?: "未知错误"
+            LiveLogger.e("Task", "异常: $errMsg", e)
+            Result.Error(-1, errMsg)
         }
     }
 
-    suspend fun runTask(id: String): Result<Unit> {
+    suspend fun runTask(taskId: String): Result<Unit> {
         return try {
-            val resp = api.runTask(id)
+            val resp = api.runTask(taskId)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
         } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
+            Result.Error(-1, e.message ?: "网络错误")
         }
     }
 
-    suspend fun stopTask(id: String): Result<Unit> {
+    suspend fun stopTask(taskId: String): Result<Unit> {
         return try {
-            val resp = api.stopTask(id)
+            val resp = api.stopTask(taskId)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
         } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
+            Result.Error(-1, e.message ?: "网络错误")
         }
     }
 
@@ -127,9 +309,9 @@ class TaskRepository @Inject constructor(
             val resp = api.enableTasks(ids.joinToString(","))
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
         } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
+            Result.Error(-1, e.message ?: "网络错误")
         }
     }
 
@@ -138,101 +320,20 @@ class TaskRepository @Inject constructor(
             val resp = api.disableTasks(ids.joinToString(","))
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
         } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
+            Result.Error(-1, e.message ?: "网络错误")
         }
     }
 
-    suspend fun deleteTask(id: String): Result<Unit> {
+    suspend fun deleteTask(taskId: String): Result<Unit> {
         return try {
-            val resp = api.deleteTask(id)
+            val resp = api.deleteTask(taskId)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
         } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
-        }
-    }
-}
-
-@Singleton
-class SubscriptionRepository @Inject constructor(
-    private val apiManager: ApiManager
-) {
-    private val api: QingLongApi get() = apiManager.getApi()
-        ?: throw IllegalStateException("ApiManager not initialized - please login first")
-
-    suspend fun getSubscriptions(search: String? = null): Result<List<Subscription>> {
-        return try {
-            val resp = api.getSubscriptions(search)
-            val body = resp.body()
-            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
-        } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
-        }
-    }
-}
-
-@Singleton
-class LogRepository @Inject constructor(
-    private val apiManager: ApiManager
-) {
-    private val api: QingLongApi get() = apiManager.getApi()
-        ?: throw IllegalStateException("ApiManager not initialized - please login first")
-
-    suspend fun getLogs(
-        taskId: String? = null,
-        search: String? = null,
-        page: Int = 1,
-        pageSize: Int = 50
-    ): Result<List<TaskLog>> {
-        return try {
-            val resp = api.getLogs(taskId, search, page, pageSize)
-            val body = resp.body()
-            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
-        } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
-        }
-    }
-}
-
-@Singleton
-class EnvVariableRepository @Inject constructor(
-    private val apiManager: ApiManager
-) {
-    private val api: QingLongApi get() = apiManager.getApi()
-        ?: throw IllegalStateException("ApiManager not initialized - please login first")
-
-    suspend fun getEnvVariables(search: String? = null, type: String? = null): Result<List<EnvVariable>> {
-        return try {
-            val resp = api.getEnvVariables(search, type)
-            val body = resp.body()
-            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(body.data ?: emptyList())
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
-        } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
-        }
-    }
-}
-
-@Singleton
-class SystemRepository @Inject constructor(
-    private val apiManager: ApiManager
-) {
-    private val api: QingLongApi get() = apiManager.getApi()
-        ?: throw IllegalStateException("ApiManager not initialized - please login first")
-
-    suspend fun getSystemStatus(): Result<SystemStatus> {
-        return try {
-            val resp = api.getSystemStatus()
-            val body = resp.body()
-            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) Result.Success(body.data)
-            else Result.Error(body?.code ?: resp.code(), body?.message ?: "Unknown error")
-        } catch (e: Exception) {
-            Result.Error(-1, e.message ?: "Network error")
+            Result.Error(-1, e.message ?: "网络错误")
         }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,7 +75,7 @@ fun TaskScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             indicator = { tabPositions ->
-                TabRowDefaults.Indicator(
+                TabRowDefaults.SecondaryIndicator(
                     modifier = Modifier.tabIndicatorOffset(tabPositions[uiState.filterTab.ordinal]),
                     color = QingLongGreen
                 )
@@ -122,14 +123,7 @@ fun TaskScreen(
                                 onToggleSelect = { viewModel.toggleTaskSelection(task.id) },
                                 onRun = { viewModel.runTask(task.id) },
                                 onStop = { viewModel.stopTask(task.id) },
-                                onViewLog = { /* TODO: navigate to log */ },
-                                onToggle = {
-                                    if (task.isDisabled) {
-                                        viewModel.enableTask(task.id)
-                                    } else {
-                                        viewModel.disableTask(task.id)
-                                    }
-                                }
+                                onViewLog = { }
                             )
                         }
                     }
@@ -139,6 +133,7 @@ fun TaskScreen(
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 private fun TaskCard(
     task: Task,
@@ -147,9 +142,32 @@ private fun TaskCard(
     onToggleSelect: () -> Unit,
     onRun: () -> Unit,
     onStop: () -> Unit,
-    onViewLog: () -> Unit,
-    onToggle: () -> Unit
+    onViewLog: () -> Unit
 ) {
+    // 预计算状态，避免在 Compose 内多次访问计算属性
+    val isActive = remember(task.id, task.pid, task.status) { task.isActive }
+    val statusText = remember(task.id, task.pid, task.status, task.isDisabled) {
+        when {
+            task.isActive -> "运行中"
+            task.isQueued -> "队列中"
+            task.isInactive -> "已禁用"
+            task.isIdle -> "空闲中"
+            else -> "待运行"
+        }
+    }
+    val statusColor = remember(task.id, task.pid, task.status, task.isDisabled) {
+        when {
+            task.isActive -> StatusRunning
+            task.isQueued -> StatusWarning
+            task.isInactive -> StatusStopped
+            task.isIdle -> StatusIdle
+            else -> StatusWarning
+        }
+    }
+    val lastRunTimeStr = remember(task.lastRunTime) {
+        task.lastRunTime?.let { formatTimestamp(it) }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -188,14 +206,23 @@ private fun TaskCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TaskStatusChip(
-                        isRunning = task.isRunning,
-                        isDisabled = task.isDisabled
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    if (task.lastRunTime != null) {
+                    // Status chip
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = statusColor.copy(alpha = 0.15f)
+                    ) {
                         Text(
-                            text = formatTimestamp(task.lastRunTime),
+                            text = statusText,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = statusColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    if (lastRunTimeStr != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = lastRunTimeStr,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -214,7 +241,7 @@ private fun TaskCard(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (task.isRunning) {
+                    if (isActive) {
                         IconButton(onClick = onStop, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 Icons.Default.StopCircle,
@@ -239,27 +266,20 @@ private fun TaskCard(
     }
 }
 
-@Composable
-private fun TaskStatusChip(
-    isRunning: Boolean,
-    isDisabled: Boolean
-) {
-    val (text, color) = when {
-        isRunning -> "运行中" to StatusRunning
-        isDisabled -> "已停止" to StatusStopped
-        else -> "待运行" to StatusWarning
-    }
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = color.copy(alpha = 0.15f)
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            fontWeight = FontWeight.Medium
-        )
+// ===================== Helper Functions =====================
+
+private fun formatTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis() / 1000
+    val diff = now - timestamp
+    return when {
+        diff < 60 -> "刚刚"
+        diff < 3600 -> "${diff / 60}分钟前"
+        diff < 86400 -> "${diff / 3600}小时前"
+        diff < 604800 -> "${diff / 86400}天前"
+        else -> {
+            val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(timestamp * 1000))
+        }
     }
 }
 
@@ -277,65 +297,12 @@ private fun SearchBar(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         placeholder = { Text("搜索任务名称...") },
         singleLine = true,
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = onClear) {
-                    Icon(Icons.Default.Clear, contentDescription = "清除")
+                    Icon(Icons.Default.Close, contentDescription = "清除")
                 }
             }
-        },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = QingLongGreen,
-            cursorColor = QingLongGreen
-        )
-    )
-}
-
-@Composable
-private fun BatchActionBar(
-    selectedCount: Int,
-    onEnableAll: () -> Unit,
-    onDisableAll: () -> Unit,
-    onDeleteAll: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        tonalElevation = 2.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "已选 $selectedCount",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TextButton(onClick = onEnableAll) {
-                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("启用")
-            }
-            TextButton(onClick = onDisableAll) {
-                Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("禁用")
-            }
-            TextButton(onClick = onDeleteAll) {
-                Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp),
-                    tint = StatusFailed)
-                Spacer(Modifier.width(4.dp))
-                Text("删除", color = StatusFailed)
-            }
         }
-    }
-}
-
-private fun formatTimestamp(timestamp: Long): String {
-    val sdf = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
-    return sdf.format(java.util.Date(timestamp * 1000))
+    )
 }

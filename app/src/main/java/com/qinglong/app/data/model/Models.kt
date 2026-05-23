@@ -10,6 +10,12 @@ data class ApiResponse<T>(
     val message: String
 )
 
+// 分页响应：/api/crons 返回 {code:200, data: {data:[Task], total:83}}
+data class PagedData<T>(
+    val data: List<T>?,
+    val total: Int?
+)
+
 // ===================== Auth =====================
 
 data class LoginRequest(
@@ -42,18 +48,40 @@ data class ServerConfig(
 // ===================== Task =====================
 
 data class Task(
-    @SerializedName("_id") val id: String,
+    val id: Int,
     val name: String,
     val command: String,
     val schedule: String,         // cron 表达式
-    val isDisabled: Boolean,
-    val lastRunTime: Long?,
-    val lastRunningTime: Long?,
-    val lastExecCode: Int?,        // 0=成功，其他=失败
-    val isRunning: Boolean,
-    val createdAt: Long,
-    val updatedAt: Long
-)
+    val status: Number?,          // 0=running, 1=idle, 2=disabled
+    val pid: Number?,             // null=未运行, 有值=正在运行
+    val isDisabled: Int?,         // 0=启用, 1=禁用
+    val isSystem: Int?,
+    val isPinned: Int?,
+    val labels: List<String>?,
+    val last_running_time: Number?,     // 耗时(秒)
+    val last_execution_time: Number?,   // 上次执行时间(Unix秒)
+    val sub_id: Int?,
+    val log_path: String?,
+    val log_name: String?,
+    val extra_schedules: Any?,
+    val task_before: Any?,
+    val task_after: Any?,
+    val allow_multiple_instances: Int?,
+    val createdAt: String?,
+    val updatedAt: String?
+) {
+    // 计算属性：是否正在运行（有pid且status为0或1）
+    val isActive: Boolean get() = pid != null && (status == null || status.toInt() != 2)
+    // 计算属性：是否已禁用
+    val isInactive: Boolean get() = isDisabled == 1 || status?.toInt() == 2
+    // 计算属性：是否空闲中
+    val isIdle: Boolean get() = pid == null && (status == null || status.toInt() == 1) && isDisabled != 1
+    // 计算属性：是否队列中
+    val isQueued: Boolean get() = status?.toInt() == 0 && pid == null
+    // 兼容旧字段名
+    val lastRunTime: Long? get() = last_execution_time?.toLong()
+    val lastRunningTime: Long? get() = last_running_time?.toLong()
+}
 
 // ===================== Subscription =====================
 

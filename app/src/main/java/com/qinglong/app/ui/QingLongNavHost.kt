@@ -43,6 +43,13 @@ fun QingLongNavHost() {
                         restoreState = true
                     }
                 },
+                onSwitchServer = {
+                    scope.launch { drawerState.close() }
+                    // 不调 logout（保留token），只是跳回登录页让用户选服务器
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
                 onLogout = {
                     scope.launch { drawerState.close() }
                     authViewModel.logout()

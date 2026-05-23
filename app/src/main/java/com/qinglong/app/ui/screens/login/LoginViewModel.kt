@@ -24,7 +24,15 @@ data class LoginUiState(
     val domain: String = "",
     val port: String = "5700",
     val username: String = "",
-    val password: String = ""
+    val password: String = "",
+    // Server list dialog
+    val showServerDialog: Boolean = false,
+    val savedServers: List<ServerConfig> = emptyList(),
+    // Edit server dialog
+    val showEditDialog: Boolean = false,
+    val editingServer: ServerConfig? = null,
+    val editingPassword: String = "",
+    val showDeleteConfirm: Boolean = false
 )
 
 @HiltViewModel
@@ -97,6 +105,7 @@ class LoginViewModel @Inject constructor(
                 if (response.isSuccessful && body != null && body.code == 200 && body.data != null) {
                     val token = body.data.token
                     authRepository.saveToken(token)
+                    authRepository.saveCredentials(state.username, state.password)
 
                     // 通过 ApiManager 设置正确的 API 实例，让所有 Repository 都能用
                     apiManager.createAndSetApi(protocol, state.domain, port)
@@ -111,7 +120,7 @@ class LoginViewModel @Inject constructor(
                         username = state.username,
                         isDefault = true
                     )
-                    authRepository.saveServer(serverConfig)
+                    authRepository.saveServer(serverConfig, password = state.password)
 
                     _uiState.update { it.copy(isLoading = false, success = true) }
                 } else {
@@ -151,7 +160,88 @@ class LoginViewModel @Inject constructor(
     }
 
     fun logout() {
-        authRepository.clearAuth()
+        authRepository.logout()
         _uiState.value = LoginUiState()
+    }
+
+    fun showServerList() {
+        val servers = authRepository.getServers()
+        _uiState.update { it.copy(showServerDialog = true, savedServers = servers) }
+    }
+
+    fun hideServerList() {
+        _uiState.update { it.copy(showServerDialog = false) }
+    }
+
+    fun selectServer(config: ServerConfig) {
+        val password = authRepository.getPassword(config.id) ?: ""
+        _uiState.update {
+            it.copy(
+                isHttps = config.protocol == "https",
+                domain = config.domain,
+                port = config.port.toString(),
+                username = config.username,
+                password = password,
+                showServerDialog = false
+            )
+        }
+    }
+
+    fun deleteServer(config: ServerConfig) {
+        authRepository.deleteServer(config.id)
+        val servers = authRepository.getServers()
+        _uiState.update { it.copy(savedServers = servers, showDeleteConfirm = false) }
+    }
+
+    fun showEditServer(config: ServerConfig) {
+        val password = authRepository.getPassword(config.id) ?: ""
+        _uiState.update {
+            it.copy(
+                showEditDialog = true,
+                editingServer = config,
+                editingPassword = password
+            )
+        }
+    }
+
+    fun hideEditServer() {
+        _uiState.update { it.copy(showEditDialog = false, editingServer = null, editingPassword = "") }
+    }
+
+    fun confirmEditServer(
+        oldServer: ServerConfig,
+        newProtocol: String,
+        newDomain: String,
+        newPort: Int,
+        newUsername: String,
+        newPassword: String
+    ) {
+        val newConfig = oldServer.copy(
+            protocol = newProtocol,
+            domain = newDomain,
+            port = newPort,
+            username = newUsername
+        )
+        authRepository.updateServer(oldServer, newConfig)
+        if (newPassword.isNotEmpty()) {
+            authRepository.savePassword(newConfig.id, newPassword)
+        }
+        val servers = authRepository.getServers()
+        _uiState.update {
+            it.copy(
+                savedServers = servers,
+                showEditDialog = false,
+                editingServer = null,
+                editingPassword = ""
+            )
+        }
+    }
+
+    fun requestDeleteServer(config: ServerConfig) {
+        _uiState.update { it.copy(showDeleteConfirm = true, editingServer = config) }
+    }
+
+    fun cancelDelete() {
+        _uiState.update { it.copy(showDeleteConfirm = false, editingServer = null) }
     }
 }

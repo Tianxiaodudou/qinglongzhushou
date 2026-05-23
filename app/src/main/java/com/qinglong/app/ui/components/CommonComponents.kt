@@ -61,11 +61,13 @@ data class NavItem(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
 @Composable
 fun QingLongDrawer(
     currentRoute: String,
     onNavigate: (String) -> Unit,
     onLogout: () -> Unit,
+    onSwitchServer: () -> Unit = {},
     username: String = "Admin",
     modifier: Modifier = Modifier
 ) {
@@ -119,7 +121,7 @@ fun QingLongDrawer(
             }
         }
 
-        Divider(
+        HorizontalDivider(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
@@ -159,8 +161,31 @@ fun QingLongDrawer(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        // Switch Server
+        NavigationDrawerItem(
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Dns,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            label = {
+                Text("切换服务器", color = MaterialTheme.colorScheme.primary)
+            },
+            selected = false,
+            onClick = {
+                onSwitchServer()
+            },
+            modifier = Modifier.padding(horizontal = 12.dp),
+            colors = NavigationDrawerItemDefaults.colors(
+                selectedContainerColor = QingLongGreen.copy(alpha = 0.1f),
+                unselectedContainerColor = Color.Transparent
+            )
+        )
+
         // Logout
-        Divider(
+        HorizontalDivider(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),

@@ -24,11 +24,20 @@ interface QingLongApi {
 
     // ===================== Task =====================
 
+    /**
+     * 获取任务列表（分页）
+     * 匹配青龙面板 v2.20.2 的实际 API
+     * 
+     * @param searchValue 搜索关键字
+     * @param queryString 查询条件 JSON，如 {"filters":[...],"sorts":null,"filterRelation":"and"}
+     */
     @GET("api/crons")
     suspend fun getTasks(
-        @Query("search") search: String? = null,
-        @Query("filter") filter: String? = null  // running | stopped
-    ): Response<ApiResponse<List<Task>>>
+        @Query("searchValue") searchValue: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("size") size: Int? = null,
+        @Query("queryString") queryString: String? = null
+    ): Response<ApiResponse<PagedData<Task>>>
 
     @POST("api/crons")
     suspend fun createTask(@Body body: Map<String, Any>): Response<ApiResponse<Task>>

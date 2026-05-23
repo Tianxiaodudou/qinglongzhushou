@@ -33,8 +33,10 @@ object NetworkModule {
     fun provideOkHttpClient(
         authRepository: AuthRepository
     ): OkHttpClient {
+        // NOTE: 不使用 HttpLoggingInterceptor.Level.BODY，因为 LiveLoggingInterceptor 已经做日志
+        // Level.BODY 会完整读取响应体导致 Retrofit 反序列化失败且严重拖慢性能
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.HEADERS
         }
 
         val authInterceptor = AuthInterceptor(

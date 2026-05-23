@@ -51,15 +51,16 @@ fun LoginScreen(
                     )
                 )
             )
+            .imePadding()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(32.dp),
+                .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.fillMaxHeight(0.08f))
 
             // Logo area
             Box(
@@ -108,7 +109,7 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // HTTP / HTTPS Switch (默认 HTTP)
                     Row(
@@ -131,7 +132,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
 
                     // Domain
                     OutlinedTextField(
@@ -262,7 +263,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     // Login Button
                     Button(
@@ -297,7 +298,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Manage servers
-            TextButton(onClick = { /* TODO: show server list */ }) {
+            TextButton(onClick = { viewModel.showServerList() }) {
                 Icon(
                     Icons.Default.Dns,
                     contentDescription = null,
@@ -311,13 +312,180 @@ fun LoginScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            // Server list dialog
+            if (uiState.showServerDialog) {
+                var menuExpandedFor by remember { mutableStateOf<String?>(null) }
+
+                AlertDialog(
+                    onDismissRequest = { viewModel.hideServerList() },
+                    title = { Text("已保存的服务器") },
+                    text = {
+                        if (uiState.savedServers.isEmpty()) {
+                            Text("暂无保存的服务器", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            Column {
+                                uiState.savedServers.forEach { server ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onClick = { viewModel.selectServer(server) }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(server.domain, fontWeight = FontWeight.Medium)
+                                                Text(
+                                                    "${server.protocol}://${server.domain}:${server.port} · ${server.username}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Box {
+                                                IconButton(onClick = { menuExpandedFor = server.id }) {
+                                                    Icon(Icons.Default.MoreVert, "更多", Modifier.size(20.dp))
+                                                }
+                                                DropdownMenu(
+                                                    expanded = menuExpandedFor == server.id,
+                                                    onDismissRequest = { menuExpandedFor = null }
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("编辑") },
+                                                        onClick = {
+                                                            menuExpandedFor = null
+                                                            viewModel.showEditServer(server)
+                                                        },
+                                                        leadingIcon = { Icon(Icons.Default.Edit, null, Modifier.size(18.dp)) }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                                                        onClick = {
+                                                            menuExpandedFor = null
+                                                            viewModel.requestDeleteServer(server)
+                                                        },
+                                                        leadingIcon = { Icon(Icons.Default.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.hideServerList() }) {
+                            Text("关闭")
+                        }
+                    }
+                )
+            }
+
+            // Delete confirm dialog
+            if (uiState.showDeleteConfirm && uiState.editingServer != null) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.cancelDelete() },
+                    title = { Text("确认删除") },
+                    text = { Text("确定要删除服务器「${uiState.editingServer!!.domain}」吗？") },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.deleteServer(uiState.editingServer!!) }) {
+                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.cancelDelete() }) {
+                            Text("取消")
+                        }
+                    }
+                )
+            }
+
+            // Edit server dialog
+            if (uiState.showEditDialog && uiState.editingServer != null) {
+                val server = uiState.editingServer!!
+                var editProtocol by remember { mutableStateOf(server.protocol) }
+                var editDomain by remember { mutableStateOf(server.domain) }
+                var editPort by remember { mutableStateOf(server.port.toString()) }
+                var editUsername by remember { mutableStateOf(server.username) }
+                var editPassword by remember { mutableStateOf(uiState.editingPassword) }
+
+                AlertDialog(
+                    onDismissRequest = { viewModel.hideEditServer() },
+                    title = { Text("编辑服务器") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Protocol toggle
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("HTTPS", style = MaterialTheme.typography.bodyMedium)
+                                Spacer(Modifier.width(8.dp))
+                                Switch(checked = editProtocol == "https", onCheckedChange = { editProtocol = if (it) "https" else "http" })
+                            }
+                            // Domain
+                            OutlinedTextField(
+                                value = editDomain,
+                                onValueChange = { editDomain = it },
+                                label = { Text("域名") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            // Port
+                            OutlinedTextField(
+                                value = editPort,
+                                onValueChange = { editPort = it.filter { c -> c.isDigit() } },
+                                label = { Text("端口") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            // Username
+                            OutlinedTextField(
+                                value = editUsername,
+                                onValueChange = { editUsername = it },
+                                label = { Text("账号") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            // Password
+                            OutlinedTextField(
+                                value = editPassword,
+                                onValueChange = { editPassword = it },
+                                label = { Text("密码") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val port = editPort.toIntOrNull() ?: 5700
+                            viewModel.confirmEditServer(server, editProtocol, editDomain, port, editUsername, editPassword)
+                        }) { Text("保存") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.hideEditServer() }) {
+                            Text("取消")
+                        }
+                    }
+                )
+            }
+
+            // 底部留白：给键盘 + 底部安全区域
+            Spacer(modifier = Modifier.height(40.dp))
 
             Text(
-                text = "青龙助手 v1.0.0  ·  Android 8.0+",
+                text = "青龙助手 v1.1.0  ·  Android 8.0+",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
