@@ -68,10 +68,9 @@ class MainActivity : ComponentActivity() {
                 if (showPermissionDialog && !loggerInitialized) {
                     StoragePermissionDialog(
                         onGranted = {
-                            LiveLogger.init(this@MainActivity)
                             loggerInitialized = true
                             showPermissionDialog = false
-                            LiveLogger.i("App", "应用启动，日志记录已开启")
+                            LiveLogger.i("App", "应用启动，存储权限已获取")
                         },
                         onDismiss = {
                             showPermissionDialog = false
