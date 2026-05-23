@@ -8,14 +8,14 @@ on:
 
 env:
   APP_NAME: QingLong
-  APP_VERSION: 1.0.0
+  APP_VERSION: 1.1.0
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       APP_NAME: QingLong
-      APP_VERSION: 1.0.0
+      APP_VERSION: 1.1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +30,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Rename APK with build info
         run: |
@@ -51,7 +51,7 @@ jobs:
       contents: write
     env:
       APP_NAME: QingLong
-      APP_VERSION: 1.0.0
+      APP_VERSION: 1.1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -88,18 +88,17 @@ jobs:
         id: body
         run: |
           cat > /tmp/release_body.md << 'RELEOF'
-          ## 青龙助手 v1.0.0
+          ## 青龙助手 v1.1.0
 
-          ### 更新内容
-          - 🔐 登录界面（支持 HTTP/HTTPS，服务器配置）
-          - 📋 定时任务管理（搜索、标签筛选、批量操作）
-          - 🧭 左侧弹出式导航栏（7个模块入口）
-          - ⚙️ 全局顶栏
-          - 💥 崩溃日志捕获（下次启动时弹窗显示错误详情）
-          - 👁️ 密码输入框小眼睛可切换明文显示
-          - 🔒 固定应用签名（支持覆盖安装）
-          - 📝 APK 文件名带版本号和编译时间
-          - 📋 实时运行日志写入 Download/qinglong.txt
+          ### 登录页面重大完善
+          登录体验已打磨至非常完好的状态！
+          - 🔐 管理已保存的服务器（多服务器支持+四项自动填充）
+          - 📱 键盘适配（imePadding，不再遮挡输入框）
+          - 🔄 APP重启自动登录获取新token
+          - 🔑 覆盖安装数据迁移
+          - 🧭 抽屉菜单新增"切换服务器"
+          - 📋 增强任务卡片+长按菜单
+          - 🐛 修复R8压缩导致服务器列表丢失
 
           ### 下载
           - APK: app-debug.apk
