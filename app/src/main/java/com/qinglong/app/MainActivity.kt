@@ -64,15 +64,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // 存储权限请求弹窗
+                // 存储权限请求弹窗（Android 9- 需要，Android 10+ 自动跳过）
                 if (showPermissionDialog && !loggerInitialized) {
                     StoragePermissionDialog(
                         onGranted = {
-                            // 获取权限后重新初始化，尝试写入 Download 目录
                             LiveLogger.init(this@MainActivity)
                             loggerInitialized = true
                             showPermissionDialog = false
-                            LiveLogger.i("App", "应用启动，存储权限已获取")
+                            LiveLogger.i("App", "应用启动，日志记录已开启")
                         },
                         onDismiss = {
                             showPermissionDialog = false

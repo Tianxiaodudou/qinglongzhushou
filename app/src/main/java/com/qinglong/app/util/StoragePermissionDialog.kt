@@ -21,8 +21,9 @@ import androidx.core.content.ContextCompat
 
 /**
  * 存储权限请求弹窗
- * Android 10+ (API 29+) 不需要存储权限即可访问 Download 目录
- * 这里主要兼容 Android 9 及以下
+ *
+ * Android 10+（API 29+）：通过 MediaStore 写入 Download 目录，无需存储权限
+ * Android 9-（API 28-）：需要 WRITE_EXTERNAL_STORAGE 权限
  */
 @Composable
 fun StoragePermissionDialog(
@@ -32,12 +33,13 @@ fun StoragePermissionDialog(
     val context = LocalContext.current
     var permissionDenied by remember { mutableStateOf(false) }
 
-    // 检查是否需要请求权限
+    // 只有 Android 9 及以下才需要请求权限
     val needsPermission = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
-        // Android 9 及以下需要 WRITE_EXTERNAL_STORAGE
-        ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) != PackageManager.PERMISSION_GRANTED
     } else {
-        // Android 10+ 不需要
         false
     }
 
@@ -51,7 +53,7 @@ fun StoragePermissionDialog(
         }
     }
 
-    // 如果不需要权限，直接回调
+    // Android 10+ 不需要权限，直接回调
     LaunchedEffect(needsPermission) {
         if (!needsPermission) {
             onGranted()
@@ -91,82 +93,43 @@ fun StoragePermissionDialog(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "青龙助手需要访问存储空间，用于保存运行日志到 Download 目录，方便排查问题。",
+                        text = "应用需要存储权限来保存运行日志到 Download 文件夹，方便您排查问题。",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Button(
-                        onClick = {
-                            permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                        },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("授予权限")
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("拒绝")
+                        }
+
+                        Button(
+                            onClick = {
+                                permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("允许")
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    TextButton(onClick = onDismiss) {
-                        Text("跳过，不使用日志")
-                    }
-                }
-            }
-        }
-    }
-
-    // 权限被拒绝提示
-    if (permissionDenied) {
-        Dialog(
-            onDismissRequest = { permissionDenied = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.85f)
-                    .wrapContentHeight(),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "⚠️",
-                        style = MaterialTheme.typography.displayMedium
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = "权限被拒绝",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "未授予存储权限，运行日志将不会保存。如需启用，请前往系统设置中手动开启存储权限。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Button(
-                        onClick = { permissionDenied = false },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("知道了")
+                    if (permissionDenied) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "权限被拒绝后，日志将无法写入。您可以在系统设置中手动授予权限。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
