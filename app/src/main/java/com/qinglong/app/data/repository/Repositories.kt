@@ -225,45 +225,58 @@ class AuthRepository @Inject constructor(
 class TaskRepository @Inject constructor(
     private val apiManager: ApiManager
 ) {
+    private val gson = com.google.gson.Gson()
+
     private val api: QingLongApi get() = apiManager.getApi()
         ?: throw IllegalStateException("ApiManager not initialized - please login first")
 
-    suspend fun getTasks(search: String? = null, filter: String? = null): Result<List<Task>> {
+    suspend fun getTaskViews(): Result<List<ViewItem>> {
         return try {
-            val api = apiManager.getApi()
-            if (api == null) {
-                LiveLogger.e("Task", "ApiManager.getApi() 返回 null，未登录？")
-                return Result.Error(-1, "未登录，请先登录")
+            val a = apiManager.getApi()
+            if (a == null) {
+                LiveLogger.e("Task", "getTaskViews: ApiManager.getApi() 返回 null")
+                return Result.Error(-1, "未登录")
             }
-            
+            val resp = a.getTaskViews()
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取视图失败")
+            }
+        } catch (e: Exception) {
+            LiveLogger.e("Task", "getTaskViews 异常: ${e.message}", e)
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    suspend fun getTasks(
+        searchValue: String? = null,
+        viewFilters: List<CronViewFilter>? = null,
+        viewFilterRelation: String? = null
+    ): Result<List<Task>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) {
+                LiveLogger.e("Task", "getTasks: ApiManager.getApi() 返回 null")
+                return Result.Error(-1, "未登录")
+            }
+
             val queryObj = mutableMapOf<String, Any?>(
-                "filters" to null,
+                "filters" to (viewFilters ?: emptyList<CronViewFilter>()),
                 "sorts" to null,
-                "filterRelation" to "and"
+                "filterRelation" to (viewFilterRelation ?: "and")
             )
-            
-            if (filter != null) {
-                when (filter) {
-                    "running" -> {
-                        queryObj["filters"] = listOf(
-                            mapOf("property" to "status", "operation" to "In", "value" to "0,0.5")
-                        )
-                    }
-                    "stopped" -> {
-                        queryObj["filters"] = listOf(
-                            mapOf("property" to "isDisabled", "operation" to "In", "value" to "1")
-                        )
-                    }
-                }
-            }
-            
-            val queryString = com.google.gson.Gson().toJson(queryObj)
-            
-            LiveLogger.i("Task", "请求: searchValue=${search.orEmpty()}, filter=$filter, queryString=$queryString")
-            val resp = api.getTasks(
-                searchValue = search?.takeIf { it.isNotBlank() },
+
+            val queryString = gson.toJson(queryObj)
+            val filtersJson = gson.toJson(emptyMap<String, String>())
+
+            LiveLogger.i("Task", "请求: searchValue=${searchValue.orEmpty()}, filters=${viewFilters?.size}, queryString=$queryString")
+            val resp = a.getTasks(
+                searchValue = searchValue?.takeIf { it.isNotBlank() },
                 page = 1,
                 size = 200,
+                filters = filtersJson,
                 queryString = queryString
             )
             val body = resp.body()
@@ -277,14 +290,14 @@ class TaskRepository @Inject constructor(
             }
         } catch (e: Exception) {
             val errMsg = e.message ?: "未知错误"
-            LiveLogger.e("Task", "异常: $errMsg", e)
+            LiveLogger.e("Task", "getTasks 异常: $errMsg", e)
             Result.Error(-1, errMsg)
         }
     }
 
-    suspend fun runTask(taskId: String): Result<Unit> {
+    suspend fun runTasks(ids: List<Int>): Result<Unit> {
         return try {
-            val resp = api.runTask(taskId)
+            val resp = api.runTasks(ids)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
             else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
@@ -293,9 +306,9 @@ class TaskRepository @Inject constructor(
         }
     }
 
-    suspend fun stopTask(taskId: String): Result<Unit> {
+    suspend fun stopTasks(ids: List<Int>): Result<Unit> {
         return try {
-            val resp = api.stopTask(taskId)
+            val resp = api.stopTasks(ids)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
             else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
@@ -304,9 +317,9 @@ class TaskRepository @Inject constructor(
         }
     }
 
-    suspend fun enableTasks(ids: List<String>): Result<Unit> {
+    suspend fun enableTasks(ids: List<Int>): Result<Unit> {
         return try {
-            val resp = api.enableTasks(ids.joinToString(","))
+            val resp = api.enableTasks(ids)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
             else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
@@ -315,9 +328,9 @@ class TaskRepository @Inject constructor(
         }
     }
 
-    suspend fun disableTasks(ids: List<String>): Result<Unit> {
+    suspend fun disableTasks(ids: List<Int>): Result<Unit> {
         return try {
-            val resp = api.disableTasks(ids.joinToString(","))
+            val resp = api.disableTasks(ids)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
             else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
@@ -326,12 +339,136 @@ class TaskRepository @Inject constructor(
         }
     }
 
-    suspend fun deleteTask(taskId: String): Result<Unit> {
+    suspend fun deleteTasks(ids: List<Int>): Result<Unit> {
         return try {
-            val resp = api.deleteTask(taskId)
+            val resp = api.deleteTasks(ids)
             val body = resp.body()
             if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
             else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    // ====== Views CRUD ======
+
+    suspend fun createView(name: String, filters: List<Map<String, Any>>?, filterRelation: String?): Result<Unit> {
+        return try {
+            val body = mutableMapOf<String, Any>("name" to name)
+            // API 要求 filters 必须是数组（即使是空数组），不能传 null
+            body["filters"] = filters ?: emptyList<Map<String, Any>>()
+            filterRelation?.let { body["filterRelation"] = it }
+            val resp = api.createTaskView(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) Result.Success(Unit)
+            else {
+                val errMsg = try {
+                    val errorBody = resp.errorBody()?.string()
+                    if (errorBody != null) errorBody else (b?.message ?: "创建失败")
+                } catch (e: Exception) {
+                    b?.message ?: "创建失败"
+                }
+                Result.Error(b?.code ?: resp.code(), errMsg)
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    suspend fun updateView(id: Int, name: String, filters: List<Map<String, Any>>?, filterRelation: String?): Result<Unit> {
+        return try {
+            val body = mutableMapOf<String, Any>("id" to id, "name" to name)
+            // API 要求 filters 必须是数组（即使是空数组），不能传 null
+            body["filters"] = filters ?: emptyList<Map<String, Any>>()
+            filterRelation?.let { body["filterRelation"] = it }
+            val resp = api.updateTaskView(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) Result.Success(Unit)
+            else {
+                val errMsg = try {
+                    val errorBody = resp.errorBody()?.string()
+                    if (errorBody != null) errorBody else (b?.message ?: "更新失败")
+                } catch (e: Exception) {
+                    b?.message ?: "更新失败"
+                }
+                Result.Error(b?.code ?: resp.code(), errMsg)
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    suspend fun deleteViews(ids: List<Int>): Result<Unit> {
+        return try {
+            val resp = api.deleteTaskViews(ids)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "删除失败")
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    // ====== Subscriptions ======
+
+    suspend fun getSubscriptions(): Result<List<Subscription>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getSubscriptions()
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取订阅失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    // ====== Cron Log ======
+
+    /**
+     * 获取指定任务的日志内容
+     * GET /api/crons/{id}/log
+     */
+    suspend fun getCronLog(taskId: Int): Result<String> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getCronLog(taskId)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data ?: "")
+            } else {
+                val errMsg = try {
+                    resp.errorBody()?.string() ?: (body?.message ?: "获取日志失败")
+                } catch (e: Exception) {
+                    body?.message ?: "获取日志失败"
+                }
+                Result.Error(body?.code ?: resp.code(), errMsg)
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 获取指定任务的历史日志文件列表
+     * GET /api/crons/{id}/logs
+     */
+    suspend fun getCronLogFiles(taskId: Int): Result<List<CronLogFile>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getCronLogFiles(taskId)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取日志列表失败")
+            }
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "网络错误")
         }

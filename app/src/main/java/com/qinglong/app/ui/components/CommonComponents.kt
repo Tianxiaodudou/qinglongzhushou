@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,6 +17,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.qinglong.app.ui.theme.*
@@ -293,7 +297,8 @@ fun EmptyView(message: String) {
 fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onSearch: () -> Unit = {}
 ) {
     OutlinedTextField(
         value = query,
@@ -306,14 +311,28 @@ fun SearchBar(
             Icon(Icons.Default.Search, contentDescription = null)
         },
         trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = onClear) {
-                    Icon(Icons.Default.Clear, contentDescription = "清除")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (query.isNotEmpty()) {
+                    // 手动搜索按钮
+                    IconButton(onClick = onSearch) {
+                        Icon(Icons.Default.Search, contentDescription = "搜索", tint = QingLongGreen)
+                    }
+                    // 清除按钮
+                    IconButton(onClick = onClear) {
+                        Icon(Icons.Default.Clear, contentDescription = "清除")
+                    }
                 }
             }
         },
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Text,
+            imeAction = ImeAction.Search
+        ),
+        keyboardActions = KeyboardActions(
+            onSearch = { onSearch() }
+        ),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = QingLongGreen,
             unfocusedBorderColor = MaterialTheme.colorScheme.outline

@@ -36,56 +36,82 @@ interface QingLongApi {
         @Query("searchValue") searchValue: String? = null,
         @Query("page") page: Int? = null,
         @Query("size") size: Int? = null,
+        @Query("filters") filters: String? = null,
         @Query("queryString") queryString: String? = null
     ): Response<ApiResponse<PagedData<Task>>>
+
+    @GET("api/crons/views")
+    suspend fun getTaskViews(): Response<ViewsResponse>
+
+    @POST("api/crons/views")
+    suspend fun createTaskView(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<ApiResponse<ViewItem>>
+
+    @PUT("api/crons/views")
+    suspend fun updateTaskView(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<ApiResponse<ViewItem>>
+
+    @HTTP(method = "DELETE", path = "api/crons/views", hasBody = true)
+    suspend fun deleteTaskViews(@Body ids: List<Int>): Response<ApiResponse<Unit>>
 
     @POST("api/crons")
     suspend fun createTask(@Body body: Map<String, Any>): Response<ApiResponse<Task>>
 
-    @PUT("api/crons/{id}")
-    suspend fun updateTask(
-        @Path("id") id: String,
-        @Body body: Map<String, Any>
-    ): Response<ApiResponse<Task>>
+    @PUT("api/crons")
+    suspend fun updateTask(@Body body: Map<String, Any>): Response<ApiResponse<Task>>
 
-    @DELETE("api/crons/{id}")
-    suspend fun deleteTask(@Path("id") id: String): Response<ApiResponse<Unit>>
+    @HTTP(method = "DELETE", path = "api/crons", hasBody = true)
+    suspend fun deleteTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
 
-    @POST("api/crons/{id}/run")
-    suspend fun runTask(@Path("id") id: String): Response<ApiResponse<Unit>>
+    @PUT("api/crons/run")
+    suspend fun runTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
 
-    @POST("api/crons/{id}/stop")
-    suspend fun stopTask(@Path("id") id: String): Response<ApiResponse<Unit>>
+    @PUT("api/crons/stop")
+    suspend fun stopTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
 
-    @POST("api/crons/{ids}/enable")
-    suspend fun enableTasks(@Path("ids") ids: String): Response<ApiResponse<Unit>>
+    @PUT("api/crons/enable")
+    suspend fun enableTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
 
-    @POST("api/crons/{ids}/disable")
-    suspend fun disableTasks(@Path("ids") ids: String): Response<ApiResponse<Unit>>
+    @PUT("api/crons/disable")
+    suspend fun disableTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
 
     // ===================== Subscription =====================
 
-    @GET("api/subs")
+    @GET("api/subscriptions")
     suspend fun getSubscriptions(
         @Query("search") search: String? = null
     ): Response<ApiResponse<List<Subscription>>>
 
-    @POST("api/subs")
+    @POST("api/subscriptions")
     suspend fun createSubscription(@Body body: Map<String, Any>): Response<ApiResponse<Subscription>>
 
-    @PUT("api/subs/{id}")
+    @PUT("api/subscriptions/{id}")
     suspend fun updateSubscription(
-        @Path("id") id: String,
+        @Path("id") id: Int,
         @Body body: Map<String, Any>
     ): Response<ApiResponse<Subscription>>
 
-    @DELETE("api/subs/{id}")
-    suspend fun deleteSubscription(@Path("id") id: String): Response<ApiResponse<Unit>>
+    @DELETE("api/subscriptions/{id}")
+    suspend fun deleteSubscription(@Path("id") id: Int): Response<ApiResponse<Unit>>
 
-    @POST("api/subs/{id}/run")
-    suspend fun runSubscription(@Path("id") id: String): Response<ApiResponse<Unit>>
+    @POST("api/subscriptions/{id}/run")
+    suspend fun runSubscription(@Path("id") id: Int): Response<ApiResponse<Unit>>
 
     // ===================== Log =====================
+
+    /**
+     * 获取指定任务的日志内容（最新一次运行）
+     * GET /api/crons/{id}/log
+     * 返回: { code: 200, data: "日志文本内容" }
+     */
+    @GET("api/crons/{id}/log")
+    suspend fun getCronLog(@Path("id") id: Int): Response<ApiResponse<String>>
+
+    /**
+     * 获取指定任务的历史日志文件列表
+     * GET /api/crons/{id}/logs
+     * 返回: { code: 200, data: [{ filename, directory, time }] }
+     */
+    @GET("api/crons/{id}/logs")
+    suspend fun getCronLogFiles(@Path("id") id: Int): Response<ApiResponse<List<CronLogFile>>>
 
     @GET("api/logs")
     suspend fun getLogs(
