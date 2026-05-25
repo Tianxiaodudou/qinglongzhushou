@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.qinglong.app.ui.theme.*
 
 // ===================== TopAppBar =====================
@@ -298,46 +299,78 @@ fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
-    onSearch: () -> Unit = {}
+    onSearch: () -> Unit = {},
+    searchMode: Int = 0,
+    onSearchModeChange: (Int) -> Unit = {}
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        placeholder = { Text("搜索任务名称...") },
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null)
-        },
-        trailingIcon = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (query.isNotEmpty()) {
-                    // 手动搜索按钮
-                    IconButton(onClick = onSearch) {
-                        Icon(Icons.Default.Search, contentDescription = "搜索", tint = QingLongGreen)
-                    }
-                    // 清除按钮
-                    IconButton(onClick = onClear) {
-                        Icon(Icons.Default.Clear, contentDescription = "清除")
-                    }
+    val modeLabels = listOf("按名称", "按订阅", "按标签")
+    val modePlaceholders = listOf("搜索任务名称...", "搜索订阅名称...", "输入标签关键词...")
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        // 搜索模式切换
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            modeLabels.forEachIndexed { index, label ->
+                TextButton(
+                    onClick = { onSearchModeChange(index) },
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 13.sp,
+                        color = if (searchMode == index) QingLongGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (searchMode == index) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+                if (index < modeLabels.size - 1) {
+                    Text(
+                        text = "|",
+                        color = MaterialTheme.colorScheme.outline,
+                        fontSize = 12.sp
+                    )
                 }
             }
-        },
-        singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Text,
-            imeAction = ImeAction.Search
-        ),
-        keyboardActions = KeyboardActions(
-            onSearch = { onSearch() }
-        ),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = QingLongGreen,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        }
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text(modePlaceholders[searchMode]) },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null)
+            },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (query.isNotEmpty()) {
+                        // 手动搜索按钮
+                        IconButton(onClick = onSearch) {
+                            Icon(Icons.Default.Search, contentDescription = "搜索", tint = QingLongGreen)
+                        }
+                        // 清除按钮
+                        IconButton(onClick = onClear) {
+                            Icon(Icons.Default.Clear, contentDescription = "清除")
+                        }
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Search
+            ),
+            keyboardActions = KeyboardActions(
+                onSearch = { onSearch() }
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = QingLongGreen,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
         )
-    )
+    }
 }
 
 // ===================== BatchActionBar =====================
@@ -345,8 +378,12 @@ fun SearchBar(
 @Composable
 fun BatchActionBar(
     selectedCount: Int,
+    onRunAll: () -> Unit,
+    onStopAll: () -> Unit,
     onEnableAll: () -> Unit,
     onDisableAll: () -> Unit,
+    onPinAll: () -> Unit,
+    onUnpinAll: () -> Unit,
     onDeleteAll: () -> Unit
 ) {
     Surface(
@@ -356,50 +393,106 @@ fun BatchActionBar(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.secondaryContainer
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
+            // 选中数量
             Text(
                 text = "已选 $selectedCount 项",
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                FilledTonalButton(
-                    onClick = onEnableAll,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = QingLongGreen.copy(alpha = 0.15f)
-                    )
+            // 第一行：运行 | 停止 | 启用 | 禁用
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SmallFilledTonalButton(
+                    onClick = onRunAll,
+                    color = QingLongGreen
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("启用", style = MaterialTheme.typography.labelSmall)
+                    Spacer(Modifier.width(3.dp))
+                    Text("运行", style = MaterialTheme.typography.labelSmall)
                 }
-                FilledTonalButton(
-                    onClick = onDisableAll,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = StatusWarning.copy(alpha = 0.15f)
-                    )
+                SmallFilledTonalButton(
+                    onClick = onStopAll,
+                    color = StatusWarning
                 ) {
                     Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("停止", style = MaterialTheme.typography.labelSmall)
+                }
+                SmallFilledTonalButton(
+                    onClick = onEnableAll,
+                    color = QingLongGreen
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("启用", style = MaterialTheme.typography.labelSmall)
+                }
+                SmallFilledTonalButton(
+                    onClick = onDisableAll,
+                    color = StatusWarning
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(3.dp))
                     Text("禁用", style = MaterialTheme.typography.labelSmall)
                 }
-                FilledTonalButton(
+            }
+            // 第二行：置顶 | 取消置顶 | 删除
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SmallFilledTonalButton(
+                    onClick = onPinAll,
+                    color = QingLongGreen
+                ) {
+                    Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("置顶", style = MaterialTheme.typography.labelSmall)
+                }
+                SmallFilledTonalButton(
+                    onClick = onUnpinAll,
+                    color = StatusWarning
+                ) {
+                    Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("取消置顶", style = MaterialTheme.typography.labelSmall)
+                }
+                SmallFilledTonalButton(
                     onClick = onDeleteAll,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = StatusFailed.copy(alpha = 0.15f)
-                    )
+                    color = StatusFailed
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(3.dp))
                     Text("删除", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SmallFilledTonalButton(
+    onClick: () -> Unit,
+    color: Color,
+    content: @Composable RowScope.() -> Unit
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = Modifier.height(32.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = color.copy(alpha = 0.15f)
+        ),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+    ) {
+        content()
     }
 }

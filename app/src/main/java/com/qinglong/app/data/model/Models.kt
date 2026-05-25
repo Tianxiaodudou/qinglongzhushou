@@ -84,7 +84,10 @@ data class Task(
     @Deprecated("Use isDisabledFlag instead")
     val isInactive: Boolean get() = isDisabledFlag
     // 兼容旧字段名
-    val lastRunTime: Long? get() = last_execution_time?.toLong()
+    val lastRunTime: Long? get() {
+        val raw = last_execution_time?.toLong()
+        return if (raw != null && raw > 0) raw else null
+    }
     val lastRunningTime: Long? get() = last_running_time?.toLong()
 }
 

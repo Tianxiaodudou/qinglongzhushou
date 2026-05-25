@@ -3,7 +3,6 @@ package com.qinglong.app.data.api
 import com.qinglong.app.data.model.LoginRequest
 import com.qinglong.app.data.repository.AuthRepository
 import com.qinglong.app.di.NetworkModule
-import com.qinglong.app.util.LiveLogger
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -39,12 +38,10 @@ class ApiManager @Inject constructor(
         val username = authRepository.getUsername()
 
         if (server == null || password == null || username == null) {
-            LiveLogger.i("ApiManager", "无保存的登录凭证，等待手动登录")
             return
         }
 
         val baseUrl = "${server.protocol}://${server.domain}:${server.port}/"
-        LiveLogger.i("ApiManager", "自动登录: $baseUrl user=$username")
 
         scope.launch {
             try {
@@ -65,15 +62,10 @@ class ApiManager @Inject constructor(
                         currentApi = NetworkModule.createApi(
                             server.protocol, server.domain, server.port, okHttpClient
                         )
-                        LiveLogger.i("ApiManager", "自动登录成功，token已更新")
-                    } else {
-                        LiveLogger.e("ApiManager", "自动登录失败：token为空")
                     }
-                } else {
-                    LiveLogger.e("ApiManager", "自动登录失败: HTTP ${resp.code()} ${resp.body()?.message}")
                 }
             } catch (e: Exception) {
-                LiveLogger.e("ApiManager", "自动登录异常: ${e.message}", e)
+                // 静默忽略自动登录异常
             } finally {
                 authRepository.markAutoLoginComplete()
             }

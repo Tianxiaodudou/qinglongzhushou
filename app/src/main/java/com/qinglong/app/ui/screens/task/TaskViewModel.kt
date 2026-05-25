@@ -8,7 +8,6 @@ import com.qinglong.app.data.model.Task
 import com.qinglong.app.data.model.ViewItem
 import com.qinglong.app.data.repository.Result
 import com.qinglong.app.data.repository.TaskRepository
-import com.qinglong.app.util.LiveLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -18,10 +17,12 @@ import javax.inject.Inject
 
 data class TaskUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,  // 切换标签/搜索时的刷新动画
     val error: String? = null,
     val tasks: List<Task> = emptyList(),
     val searchQuery: String = "",
     val showSearch: Boolean = false,
+    val searchMode: Int = 0,  // 0=按名称搜索, 1=按订阅搜索, 2=按标签搜索
     // 视图标签：从 API 动态拉取
     val viewTabs: List<ViewTab> = emptyList(),
     val selectedTabIndex: Int = 0,
@@ -42,6 +43,11 @@ data class TaskUiState(
     val isLoadingLogFiles: Boolean = false,              // 是否正在加载历史日志列表
     val selectedLogFile: CronLogFile? = null,            // 用户选中的历史日志文件
     val isShowingLogDetail: Boolean = false,             // 是否正在查看某条日志详情
+    val showDeleteLogConfirm: Boolean = false,            // 是否显示删除日志确认弹窗
+    val deletingLogFile: CronLogFile? = null,             // 正在删除的日志文件
+    // 历史日志多选
+    val isLogBatchMode: Boolean = false,                  // 日志列表是否处于多选模式
+    val selectedLogFiles: Set<String> = emptySet(),       // 选中的日志文件标识（用 fullPath）
     // 视图管理弹窗
     val showViewManager: Boolean = false,
     val editingView: ViewTab? = null,
@@ -51,7 +57,9 @@ data class TaskUiState(
     val subscriptions: List<com.qinglong.app.data.model.Subscription> = emptyList(),
     // 错误提示弹窗
     val showErrorDialog: Boolean = false,
-    val errorDialogMessage: String = ""
+    val errorDialogMessage: String = "",
+    // 下次运行时间缓存（key=任务id，value=格式化后的时间字符串）
+    val nextRunTimeCache: Map<Int, String> = emptyMap()
 )
 
 data class ViewTab(
@@ -70,6 +78,17 @@ class TaskViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TaskUiState())
     val uiState: StateFlow<TaskUiState> = _uiState.asStateFlow()
 
+    private val _toastMessage = MutableStateFlow<String?>(null)
+    val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
+
+    fun showToast(message: String) {
+        _toastMessage.value = message
+    }
+
+    fun clearToast() {
+        _toastMessage.value = null
+    }
+
     // 实时日志轮询任务
     private var logPollingJob: Job? = null
 
@@ -85,7 +104,6 @@ class TaskViewModel @Inject constructor(
                     _uiState.update { it.copy(subscriptions = result.data) }
                 }
                 is Result.Error -> {
-                    LiveLogger.e("Task", "订阅列表加载失败: ${result.message}")
                 }
             }
         }
@@ -101,7 +119,6 @@ class TaskViewModel @Inject constructor(
             when (val result = taskRepository.getTaskViews()) {
                 is Result.Success -> {
                     val views = result.data
-                    LiveLogger.i("Task", "视图标签加载成功: ${views.size} 个")
 
                     val tabs = if (views.isNotEmpty()) {
                         views.sortedBy { it.position ?: Long.MAX_VALUE }.map { v ->
@@ -127,7 +144,6 @@ class TaskViewModel @Inject constructor(
                     _uiState.update { it.copy(viewTabs = tabs, isLoading = false) }
                 }
                 is Result.Error -> {
-                    LiveLogger.e("Task", "视图标签加载失败: ${result.message}，使用默认标签")
                     val defaultTabs = listOf(
                         ViewTab(0, "全部", 1, null, null),
                         ViewTab(0, "运行中", 1,
@@ -149,6 +165,14 @@ class TaskViewModel @Inject constructor(
         loadTasks()
     }
 
+    /**
+     * 刷新：重新加载任务列表（保留当前视图标签）
+     */
+    fun refreshTasks() {
+        _uiState.update { it.copy(isRefreshing = true) }
+        loadTasks()
+    }
+
     fun loadTasks() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -165,20 +189,33 @@ class TaskViewModel @Inject constructor(
                 null to null
             }
 
-            LiveLogger.i("Task", "加载任务: searchValue=$query, tab=${currentTab?.name}, filters=${viewFilters?.size}")
-
             when (val result = taskRepository.getTasks(
                 searchValue = query.takeIf { it.isNotBlank() },
                 viewFilters = viewFilters,
                 viewFilterRelation = viewFilterRelation
             )) {
                 is Result.Success -> {
-                    LiveLogger.i("Task", "加载成功: ${result.data.size} 个任务")
-                    _uiState.update { it.copy(isLoading = false, tasks = result.data) }
+                    // 一次性计算所有任务的"预计下次运行时间"
+                    val cache = mutableMapOf<Int, String>()
+                    for (task in result.data) {
+                        val nextCal = com.qinglong.app.util.CronParser.getNextRunTime(task.schedule, task.lastRunTime)
+                        cache[task.id] = if (nextCal != null) {
+                            String.format(
+                                "%04d-%02d-%02d %02d:%02d",
+                                nextCal.get(java.util.Calendar.YEAR),
+                                nextCal.get(java.util.Calendar.MONTH) + 1,
+                                nextCal.get(java.util.Calendar.DAY_OF_MONTH),
+                                nextCal.get(java.util.Calendar.HOUR_OF_DAY),
+                                nextCal.get(java.util.Calendar.MINUTE)
+                            )
+                        } else {
+                            "无法计算"
+                        }
+                    }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, tasks = result.data, nextRunTimeCache = cache) }
                 }
                 is Result.Error -> {
-                    LiveLogger.e("Task", "加载失败: ${result.message}")
-                    _uiState.update { it.copy(isLoading = false, error = result.message) }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = result.message) }
                 }
             }
         }
@@ -189,10 +226,14 @@ class TaskViewModel @Inject constructor(
         if (query.isBlank()) loadTasks()
     }
 
+    fun setSearchMode(mode: Int) {
+        _uiState.update { it.copy(searchMode = mode) }
+    }
+
     /**
-     * 在全部任务中按名称搜索（忽略当前视图标签）
+     * 按任务名称模糊搜索（忽略当前视图标签）
      */
-    fun searchAllTasks(query: String) {
+    fun searchByName(query: String) {
         if (query.isBlank()) {
             loadTasks()
             return
@@ -200,22 +241,147 @@ class TaskViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
-            LiveLogger.i("Task", "全局搜索: query=$query")
-
             when (val result = taskRepository.getTasks(
                 searchValue = query,
                 viewFilters = null,
                 viewFilterRelation = null
             )) {
                 is Result.Success -> {
-                    LiveLogger.i("Task", "搜索成功: ${result.data.size} 个结果")
-                    _uiState.update { it.copy(isLoading = false, tasks = result.data) }
+                    val cache = mutableMapOf<Int, String>()
+                    for (task in result.data) {
+                        val nextCal = com.qinglong.app.util.CronParser.getNextRunTime(task.schedule, task.lastRunTime)
+                        cache[task.id] = if (nextCal != null) {
+                            String.format(
+                                "%04d-%02d-%02d %02d:%02d",
+                                nextCal.get(java.util.Calendar.YEAR),
+                                nextCal.get(java.util.Calendar.MONTH) + 1,
+                                nextCal.get(java.util.Calendar.DAY_OF_MONTH),
+                                nextCal.get(java.util.Calendar.HOUR_OF_DAY),
+                                nextCal.get(java.util.Calendar.MINUTE)
+                            )
+                        } else {
+                            "无法计算"
+                        }
+                    }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, tasks = result.data, nextRunTimeCache = cache) }
                 }
                 is Result.Error -> {
-                    LiveLogger.e("Task", "搜索失败: ${result.message}")
-                    _uiState.update { it.copy(isLoading = false, error = result.message) }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = result.message) }
                 }
             }
+        }
+    }
+
+    /**
+     * 按订阅源搜索（客户端过滤）
+     * 从全部任务中筛选出订阅名称或ID包含关键词的任务
+     */
+    fun searchBySubscription(query: String) {
+        if (query.isBlank()) {
+            loadTasks()
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            // 先获取全部任务
+            when (val result = taskRepository.getTasks(
+                searchValue = null,
+                viewFilters = null,
+                viewFilterRelation = null
+            )) {
+                is Result.Success -> {
+                    // 客户端按订阅名称模糊匹配
+                    val filtered = result.data.filter { task ->
+                        task.sub_id != null && _uiState.value.subscriptions.any { sub ->
+                            sub.id == task.sub_id && sub.name.contains(query, ignoreCase = true)
+                        }
+                    }
+
+                    val cache = mutableMapOf<Int, String>()
+                    for (task in filtered) {
+                        val nextCal = com.qinglong.app.util.CronParser.getNextRunTime(task.schedule, task.lastRunTime)
+                        cache[task.id] = if (nextCal != null) {
+                            String.format(
+                                "%04d-%02d-%02d %02d:%02d",
+                                nextCal.get(java.util.Calendar.YEAR),
+                                nextCal.get(java.util.Calendar.MONTH) + 1,
+                                nextCal.get(java.util.Calendar.DAY_OF_MONTH),
+                                nextCal.get(java.util.Calendar.HOUR_OF_DAY),
+                                nextCal.get(java.util.Calendar.MINUTE)
+                            )
+                        } else {
+                            "无法计算"
+                        }
+                    }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, tasks = filtered, nextRunTimeCache = cache) }
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = result.message) }
+                }
+            }
+        }
+    }
+
+    /**
+     * 按标签搜索（客户端过滤）
+     * 从全部任务中筛选出 labels 包含关键词的任务
+     */
+    fun searchByLabel(query: String) {
+        if (query.isBlank()) {
+            loadTasks()
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            // 先获取全部任务
+            when (val result = taskRepository.getTasks(
+                searchValue = null,
+                viewFilters = null,
+                viewFilterRelation = null
+            )) {
+                is Result.Success -> {
+                    // 客户端按标签过滤
+                    val filtered = result.data.filter { task ->
+                        task.labels?.any { label ->
+                            label.contains(query, ignoreCase = true)
+                        } == true
+                    }
+
+                    val cache = mutableMapOf<Int, String>()
+                    for (task in filtered) {
+                        val nextCal = com.qinglong.app.util.CronParser.getNextRunTime(task.schedule, task.lastRunTime)
+                        cache[task.id] = if (nextCal != null) {
+                            String.format(
+                                "%04d-%02d-%02d %02d:%02d",
+                                nextCal.get(java.util.Calendar.YEAR),
+                                nextCal.get(java.util.Calendar.MONTH) + 1,
+                                nextCal.get(java.util.Calendar.DAY_OF_MONTH),
+                                nextCal.get(java.util.Calendar.HOUR_OF_DAY),
+                                nextCal.get(java.util.Calendar.MINUTE)
+                            )
+                        } else {
+                            "无法计算"
+                        }
+                    }
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, tasks = filtered, nextRunTimeCache = cache) }
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = result.message) }
+                }
+            }
+        }
+    }
+
+    /**
+     * 根据当前搜索模式执行搜索
+     */
+    fun searchAllTasks(query: String) {
+        when (_uiState.value.searchMode) {
+            1 -> searchBySubscription(query)
+            2 -> searchByLabel(query)
+            else -> searchByName(query)
         }
     }
 
@@ -248,7 +414,6 @@ class TaskViewModel @Inject constructor(
 
     fun runTask(id: Int) {
         viewModelScope.launch {
-            LiveLogger.i("Task", "运行任务: $id")
             when (taskRepository.runTasks(listOf(id))) {
                 is Result.Success -> loadTasks()
                 is Result.Error -> {}
@@ -258,10 +423,41 @@ class TaskViewModel @Inject constructor(
 
     fun stopTask(id: Int) {
         viewModelScope.launch {
-            LiveLogger.i("Task", "停止任务: $id")
             when (taskRepository.stopTasks(listOf(id))) {
                 is Result.Success -> loadTasks()
                 is Result.Error -> {}
+            }
+        }
+    }
+
+    fun pinTask(id: Int) {
+        viewModelScope.launch {
+            when (val result = taskRepository.pinTask(id)) {
+                is Result.Success -> {
+                    loadTasks()
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(
+                        showErrorDialog = true,
+                        errorDialogMessage = "置顶失败: ${result.message}"
+                    ) }
+                }
+            }
+        }
+    }
+
+    fun unpinTask(id: Int) {
+        viewModelScope.launch {
+            when (val result = taskRepository.unpinTask(id)) {
+                is Result.Success -> {
+                    loadTasks()
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(
+                        showErrorDialog = true,
+                        errorDialogMessage = "取消置顶失败: ${result.message}"
+                    ) }
+                }
             }
         }
     }
@@ -270,7 +466,6 @@ class TaskViewModel @Inject constructor(
         val ids = _uiState.value.selectedTaskIds.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            LiveLogger.i("Task", "批量运行: $ids")
             taskRepository.runTasks(ids)
             _uiState.update { it.copy(selectedTaskIds = emptySet()) }
             loadTasks()
@@ -281,7 +476,6 @@ class TaskViewModel @Inject constructor(
         val ids = _uiState.value.selectedTaskIds.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            LiveLogger.i("Task", "批量停止: $ids")
             taskRepository.stopTasks(ids)
             _uiState.update { it.copy(selectedTaskIds = emptySet()) }
             loadTasks()
@@ -292,7 +486,6 @@ class TaskViewModel @Inject constructor(
         val ids = _uiState.value.selectedTaskIds.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            LiveLogger.i("Task", "批量启用: $ids")
             taskRepository.enableTasks(ids)
             _uiState.update { it.copy(selectedTaskIds = emptySet()) }
             loadTasks()
@@ -303,7 +496,6 @@ class TaskViewModel @Inject constructor(
         val ids = _uiState.value.selectedTaskIds.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            LiveLogger.i("Task", "批量禁用: $ids")
             taskRepository.disableTasks(ids)
             _uiState.update { it.copy(selectedTaskIds = emptySet()) }
             loadTasks()
@@ -314,8 +506,27 @@ class TaskViewModel @Inject constructor(
         val ids = _uiState.value.selectedTaskIds.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            LiveLogger.i("Task", "批量删除: $ids")
             taskRepository.deleteTasks(ids)
+            _uiState.update { it.copy(selectedTaskIds = emptySet()) }
+            loadTasks()
+        }
+    }
+
+    fun batchPin() {
+        val ids = _uiState.value.selectedTaskIds.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            taskRepository.pinTasks(ids)
+            _uiState.update { it.copy(selectedTaskIds = emptySet()) }
+            loadTasks()
+        }
+    }
+
+    fun batchUnpin() {
+        val ids = _uiState.value.selectedTaskIds.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            taskRepository.unpinTasks(ids)
             _uiState.update { it.copy(selectedTaskIds = emptySet()) }
             loadTasks()
         }
@@ -330,6 +541,61 @@ class TaskViewModel @Inject constructor(
         _uiState.update { it.copy(showEditDialog = true, editingTask = task) }
     }
     fun hideEditDialog() { _uiState.update { it.copy(showEditDialog = false, editingTask = null) } }
+
+    /**
+     * 创建新任务
+     * 调用 POST /api/crons
+     */
+    fun createNewTask(
+        name: String,
+        command: String,
+        schedule: String,
+        labels: List<String>,
+        allowMultipleInstances: Int,
+        logName: String?,
+        taskBefore: String?,
+        taskAfter: String?
+    ) {
+        if (name.isBlank()) {
+            _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "任务名称不能为空") }
+            return
+        }
+        if (command.isBlank()) {
+            _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "命令不能为空") }
+            return
+        }
+        if (schedule.isBlank()) {
+            _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "定时规则不能为空") }
+            return
+        }
+
+        // 先关闭弹窗
+        _uiState.update { it.copy(showCreateDialog = false) }
+
+        viewModelScope.launch {
+            val body = mutableMapOf<String, Any>(
+                "name" to name,
+                "command" to command,
+                "schedule" to schedule,
+                "labels" to labels,
+                "allow_multiple_instances" to allowMultipleInstances
+            )
+            if (logName != null) body["log_name"] = logName
+            if (taskBefore != null) body["task_before"] = taskBefore
+            if (taskAfter != null) body["task_after"] = taskAfter
+
+            val result = taskRepository.createTask(body)
+            when (result) {
+                is Result.Error -> {
+                    _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "创建失败: ${result.message}") }
+                }
+                is Result.Success -> {
+                    showToast("任务已创建")
+                }
+            }
+            loadTasks()
+        }
+    }
 
     fun showDeleteConfirm(task: Task) {
         _uiState.update { it.copy(showDeleteConfirm = true, deletingTask = task) }
@@ -372,13 +638,11 @@ class TaskViewModel @Inject constructor(
         logPollingJob = viewModelScope.launch {
             while (true) {
                 delay(3000) // 3 秒间隔
-                LiveLogger.i("Task", "轮询实时日志: taskId=$taskId")
                 when (val result = taskRepository.getCronLog(taskId)) {
                     is Result.Success -> {
                         _uiState.update { it.copy(logContent = result.data ?: "") }
                     }
                     is Result.Error -> {
-                        LiveLogger.e("Task", "轮询日志失败: ${result.message}")
                     }
                 }
             }
@@ -388,13 +652,11 @@ class TaskViewModel @Inject constructor(
     private fun loadLatestLog(taskId: Int) {
         _uiState.update { it.copy(isLoadingLog = true, logContent = "") }
         viewModelScope.launch {
-            LiveLogger.i("Task", "加载最新日志: taskId=$taskId")
             when (val result = taskRepository.getCronLog(taskId)) {
                 is Result.Success -> {
                     _uiState.update { it.copy(logContent = result.data, isLoadingLog = false) }
                 }
                 is Result.Error -> {
-                    LiveLogger.e("Task", "加载最新日志失败: ${result.message}")
                     _uiState.update { it.copy(logContent = "加载失败: ${result.message}", isLoadingLog = false) }
                 }
             }
@@ -404,13 +666,11 @@ class TaskViewModel @Inject constructor(
     private fun loadLogFiles(taskId: Int) {
         _uiState.update { it.copy(isLoadingLogFiles = true, logFiles = emptyList()) }
         viewModelScope.launch {
-            LiveLogger.i("Task", "加载历史日志列表: taskId=$taskId")
             when (val result = taskRepository.getCronLogFiles(taskId)) {
                 is Result.Success -> {
                     _uiState.update { it.copy(logFiles = result.data, isLoadingLogFiles = false) }
                 }
                 is Result.Error -> {
-                    LiveLogger.e("Task", "加载历史日志列表失败: ${result.message}")
                     _uiState.update { it.copy(isLoadingLogFiles = false) }
                 }
             }
@@ -422,13 +682,11 @@ class TaskViewModel @Inject constructor(
         // 加载该历史日志文件的内容
         viewModelScope.launch {
             val task = _uiState.value.logTask ?: return@launch
-            LiveLogger.i("Task", "加载历史日志: taskId=${task.id}, file=${file.fullPath}")
             when (val result = taskRepository.getCronLog(task.id)) {
                 is Result.Success -> {
                     _uiState.update { it.copy(logContent = result.data, isLoadingLog = false) }
                 }
                 is Result.Error -> {
-                    LiveLogger.e("Task", "加载历史日志失败: ${result.message}")
                     _uiState.update { it.copy(logContent = "加载失败: ${result.message}", isLoadingLog = false) }
                 }
             }
@@ -437,6 +695,35 @@ class TaskViewModel @Inject constructor(
 
     fun backToLogFileList() {
         _uiState.update { it.copy(isShowingLogDetail = false, selectedLogFile = null, logContent = "") }
+    }
+
+    fun showDeleteLogConfirm(file: CronLogFile) {
+        _uiState.update { it.copy(showDeleteLogConfirm = true, deletingLogFile = file) }
+    }
+
+    fun hideDeleteLogConfirm() {
+        _uiState.update { it.copy(showDeleteLogConfirm = false, deletingLogFile = null) }
+    }
+
+    fun deleteLogFile() {
+        val file = _uiState.value.deletingLogFile ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(showDeleteLogConfirm = false) }
+            when (val result = taskRepository.deleteLogFile(file.directory, file.filename)) {
+                is Result.Success -> {
+                    // 刷新日志列表
+                    val taskId = _uiState.value.logTask?.id ?: return@launch
+                    loadLogFiles(taskId)
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(
+                        showDeleteLogConfirm = false,
+                        showErrorDialog = true,
+                        errorDialogMessage = "删除日志失败: ${result.message}"
+                    ) }
+                }
+            }
+        }
     }
 
     fun hideLogDialog() {
@@ -452,8 +739,88 @@ class TaskViewModel @Inject constructor(
                 logFiles = emptyList(),
                 isLoadingLogFiles = false,
                 selectedLogFile = null,
-                isShowingLogDetail = false
+                isShowingLogDetail = false,
+                isLogBatchMode = false,
+                selectedLogFiles = emptySet()
             )
+        }
+    }
+
+    // ========== 历史日志多选 ==========
+
+    fun toggleLogBatchMode() {
+        _uiState.update {
+            if (it.isLogBatchMode) {
+                // 退出多选模式
+                it.copy(isLogBatchMode = false, selectedLogFiles = emptySet())
+            } else {
+                it.copy(isLogBatchMode = true, selectedLogFiles = emptySet())
+            }
+        }
+    }
+
+    fun toggleLogFileSelection(file: CronLogFile) {
+        _uiState.update { state ->
+            val key = file.fullPath
+            val newSelected = if (key in state.selectedLogFiles) {
+                state.selectedLogFiles - key
+            } else {
+                state.selectedLogFiles + key
+            }
+            state.copy(selectedLogFiles = newSelected)
+        }
+    }
+
+    fun selectAllLogFiles() {
+        _uiState.update { state ->
+            val allKeys = state.logFiles.map { it.fullPath }.toSet()
+            state.copy(selectedLogFiles = allKeys)
+        }
+    }
+
+    fun invertLogFileSelection() {
+        _uiState.update { state ->
+            val allKeys = state.logFiles.map { it.fullPath }.toSet()
+            val inverted = allKeys - state.selectedLogFiles
+            state.copy(selectedLogFiles = inverted)
+        }
+    }
+
+    fun deleteSelectedLogFiles() {
+        val files = _uiState.value.selectedLogFiles.toList()
+        if (files.isEmpty()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLogBatchMode = false, selectedLogFiles = emptySet()) }
+            var successCount = 0
+            var failCount = 0
+            var lastError = ""
+            for (fullPath in files) {
+                // 从 fullPath 解析 directory 和 filename
+                val lastSlash = fullPath.lastIndexOf('/')
+                val directory = if (lastSlash >= 0) fullPath.substring(0, lastSlash) else ""
+                val filename = if (lastSlash >= 0) fullPath.substring(lastSlash + 1) else fullPath
+                when (taskRepository.deleteLogFile(directory, filename)) {
+                    is Result.Success -> successCount++
+                    is Result.Error -> {
+                        failCount++
+                        lastError = "删除失败: ${fullPath}"
+                    }
+                }
+            }
+            // 刷新日志列表
+            val taskId = _uiState.value.logTask?.id ?: return@launch
+            loadLogFiles(taskId)
+            if (failCount > 0) {
+                _uiState.update { it.copy(
+                    showErrorDialog = true,
+                    errorDialogMessage = if (successCount > 0) {
+                        "成功删除 $successCount 个，失败 $failCount 个。$lastError"
+                    } else {
+                        "删除失败 $failCount 个。$lastError"
+                    }
+                ) }
+            }
+            // 全部成功时静默刷新，不弹窗
         }
     }
 
@@ -461,7 +828,6 @@ class TaskViewModel @Inject constructor(
 
     fun enableTask(id: Int) {
         viewModelScope.launch {
-            LiveLogger.i("Task", "启用任务: $id")
             taskRepository.enableTasks(listOf(id))
             loadTasks()
         }
@@ -469,7 +835,6 @@ class TaskViewModel @Inject constructor(
 
     fun disableTask(id: Int) {
         viewModelScope.launch {
-            LiveLogger.i("Task", "禁用任务: $id")
             taskRepository.disableTasks(listOf(id))
             loadTasks()
         }
@@ -477,8 +842,64 @@ class TaskViewModel @Inject constructor(
 
     fun deleteTask(id: Int) {
         viewModelScope.launch {
-            LiveLogger.i("Task", "删除任务: $id")
             taskRepository.deleteTasks(listOf(id))
+            loadTasks()
+        }
+    }
+
+    /**
+     * 保存编辑后的任务
+     * 调用 PUT /api/crons
+     */
+    fun saveTask(
+        id: Int,
+        name: String,
+        command: String,
+        schedule: String,
+        labels: List<String>,
+        allowMultipleInstances: Int,
+        logName: String?,
+        taskBefore: String?,
+        taskAfter: String?
+    ) {
+        if (name.isBlank()) {
+            _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "任务名称不能为空") }
+            return
+        }
+        if (command.isBlank()) {
+            _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "命令不能为空") }
+            return
+        }
+        if (schedule.isBlank()) {
+            _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "定时规则不能为空") }
+            return
+        }
+
+        // 先关闭弹窗
+        _uiState.update { it.copy(showEditDialog = false, editingTask = null) }
+
+        viewModelScope.launch {
+            val body = mutableMapOf<String, @JvmSuppressWildcards Any>(
+                "id" to id,
+                "name" to name,
+                "command" to command,
+                "schedule" to schedule,
+                "labels" to labels,
+                "allow_multiple_instances" to allowMultipleInstances
+            )
+            if (logName != null) body["log_name"] = logName
+            if (taskBefore != null) body["task_before"] = taskBefore
+            if (taskAfter != null) body["task_after"] = taskAfter
+
+            val result = taskRepository.updateTask(body)
+            when (result) {
+                is Result.Error -> {
+                    _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "保存失败: ${result.message}") }
+                }
+                is Result.Success -> {
+                    showToast("任务已更新")
+                }
+            }
             loadTasks()
         }
     }
@@ -513,14 +934,11 @@ class TaskViewModel @Inject constructor(
 
     fun saveView(name: String, filterProperty: String, filterOperation: String, filterValue: String) {
         val current = _uiState.value.editingView
-        LiveLogger.i("Task", "saveView called: name='$name', prop='$filterProperty', op='$filterOperation', val='$filterValue', editingView=$current")
         if (current == null) {
-            LiveLogger.e("Task", "saveView: editingView is null, forcing close")
             _uiState.update { it.copy(editingView = null, showViewManager = false, error = "状态异常，请重试") }
             return
         }
         if (name.isBlank()) {
-            LiveLogger.e("Task", "saveView: name is blank")
             _uiState.update { it.copy(error = "视图名称不能为空") }
             return
         }
@@ -536,16 +954,13 @@ class TaskViewModel @Inject constructor(
         _uiState.update { it.copy(editingView = null, showViewManager = false) }
 
         viewModelScope.launch {
-            LiveLogger.i("Task", "saveView launching: id=${current.id}, name=$name, filters=$filters")
             val result = if (current.id == 0) {
                 taskRepository.createView(name, filters, "and")
             } else {
                 taskRepository.updateView(current.id, name, filters, "and")
             }
-            LiveLogger.i("Task", "saveView result: $result")
             if (result is Result.Error) {
                 val errMsg = result.message
-                LiveLogger.e("Task", "保存视图失败: $errMsg")
                 _uiState.update { it.copy(showErrorDialog = true, errorDialogMessage = "保存视图失败: $errMsg") }
             }
             // 无论成功失败都重新加载视图列表

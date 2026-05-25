@@ -8,7 +8,6 @@ import com.google.gson.reflect.TypeToken
 import com.qinglong.app.data.api.ApiManager
 import com.qinglong.app.data.api.QingLongApi
 import com.qinglong.app.data.model.*
-import com.qinglong.app.util.LiveLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,20 +50,15 @@ class AuthRepository @Inject constructor(
      * 新格式：servers_json = "[{...}]"
      */
     private fun migrateIfNeeded() {
-        LiveLogger.i("AuthRepo", "检查是否需要迁移...")
         if (getServers().isNotEmpty()) {
-            LiveLogger.i("AuthRepo", "已有新格式数据，跳过迁移")
             return
         }
 
         val oldDomain = serverPrefs.getString("server_domain", null)
         if (oldDomain == null) {
-            LiveLogger.i("AuthRepo", "无旧格式数据，无需迁移")
             return
         }
         val oldId = serverPrefs.getString("server_id", null) ?: return
-
-        LiveLogger.i("AuthRepo", "发现旧格式数据: $oldDomain, 开始迁移...")
         val oldPassword = securePrefs.getString("password", null)
 
         val oldServer = ServerConfig(
@@ -95,8 +89,6 @@ class AuthRepository @Inject constructor(
             remove("server_username")
             remove("server_is_default")
         }.apply()
-
-        LiveLogger.i("AuthRepo", "已迁移旧格式服务器配置: $oldDomain")
     }
 
     private val _currentServer = MutableStateFlow(getServers().firstOrNull())
@@ -111,7 +103,6 @@ class AuthRepository @Inject constructor(
         _autoLoginComplete.value = true
         // 自动登录完成后：有 token 才算已登录
         _isLoggedIn.value = getToken() != null
-        LiveLogger.i("AuthRepo", "自动登录流程结束, isLoggedIn=${_isLoggedIn.value}")
     }
 
     fun getToken(): String? = securePrefs.getString("token", null)
@@ -142,16 +133,12 @@ class AuthRepository @Inject constructor(
 
     fun getServers(): List<ServerConfig> {
         val json = serverPrefs.getString(SERVERS_KEY, null) ?: run {
-            LiveLogger.i("AuthRepo", "getServers: servers_json key 不存在")
             return emptyList()
         }
-        LiveLogger.i("AuthRepo", "getServers: json长度=${json.length}, 内容前80字符=${json.take(80)}")
         return try {
             val result: List<ServerConfig>? = gson.fromJson(json, object : TypeToken<List<ServerConfig>>() {}.type)
-            LiveLogger.i("AuthRepo", "getServers: 解析成功, 共 ${result?.size ?: 0} 条")
             result ?: emptyList()
         } catch (e: Exception) {
-            LiveLogger.e("AuthRepo", "getServers: 解析失败: ${e.message}", e)
             emptyList()
         }
     }
@@ -168,7 +155,6 @@ class AuthRepository @Inject constructor(
         }
         _currentServer.value = config
         _isLoggedIn.value = true
-        LiveLogger.i("AuthRepo", "服务器已保存: $key, 密码${if (password.isNotBlank()) "已保存(长度${password.length})" else "未保存"}, 共 ${servers.size} 条, jsonLen=${json.length}")
     }
 
     fun deleteServer(serverId: String) {
@@ -196,7 +182,6 @@ class AuthRepository @Inject constructor(
                 }
             }
             _currentServer.value = new
-            LiveLogger.i("AuthRepo", "服务器已更新: ${new.protocol}://${new.domain}:${new.port}")
         }
     }
 
@@ -234,7 +219,6 @@ class TaskRepository @Inject constructor(
         return try {
             val a = apiManager.getApi()
             if (a == null) {
-                LiveLogger.e("Task", "getTaskViews: ApiManager.getApi() 返回 null")
                 return Result.Error(-1, "未登录")
             }
             val resp = a.getTaskViews()
@@ -245,7 +229,6 @@ class TaskRepository @Inject constructor(
                 Result.Error(body?.code ?: resp.code(), body?.message ?: "获取视图失败")
             }
         } catch (e: Exception) {
-            LiveLogger.e("Task", "getTaskViews 异常: ${e.message}", e)
             Result.Error(-1, e.message ?: "网络错误")
         }
     }
@@ -258,7 +241,6 @@ class TaskRepository @Inject constructor(
         return try {
             val a = apiManager.getApi()
             if (a == null) {
-                LiveLogger.e("Task", "getTasks: ApiManager.getApi() 返回 null")
                 return Result.Error(-1, "未登录")
             }
 
@@ -270,8 +252,6 @@ class TaskRepository @Inject constructor(
 
             val queryString = gson.toJson(queryObj)
             val filtersJson = gson.toJson(emptyMap<String, String>())
-
-            LiveLogger.i("Task", "请求: searchValue=${searchValue.orEmpty()}, filters=${viewFilters?.size}, queryString=$queryString")
             val resp = a.getTasks(
                 searchValue = searchValue?.takeIf { it.isNotBlank() },
                 page = 1,
@@ -280,17 +260,14 @@ class TaskRepository @Inject constructor(
                 queryString = queryString
             )
             val body = resp.body()
-            LiveLogger.i("Task", "响应: code=${resp.code()}, body=${body != null}, bodyCode=${body?.code}, total=${body?.data?.total}")
             if (resp.isSuccessful && body != null && body.code == 200) {
                 Result.Success(body.data?.data ?: emptyList())
             } else {
                 val errMsg = "HTTP ${resp.code()} bodyCode=${body?.code} msg=${body?.message}"
-                LiveLogger.e("Task", errMsg)
                 Result.Error(body?.code ?: resp.code(), body?.message ?: errMsg)
             }
         } catch (e: Exception) {
             val errMsg = e.message ?: "未知错误"
-            LiveLogger.e("Task", "getTasks 异常: $errMsg", e)
             Result.Error(-1, errMsg)
         }
     }
@@ -347,6 +324,50 @@ class TaskRepository @Inject constructor(
             else Result.Error(body?.code ?: resp.code(), body?.message ?: "操作失败")
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    suspend fun pinTask(id: Int): Result<Unit> {
+        return try {
+            val resp = api.pinTasks(listOf(id))
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "置顶失败")
+        } catch (e: Exception) {
+            Result.Error(-1, "网络错误: ${e.message}")
+        }
+    }
+
+    suspend fun unpinTask(id: Int): Result<Unit> {
+        return try {
+            val resp = api.unpinTasks(listOf(id))
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "取消置顶失败")
+        } catch (e: Exception) {
+            Result.Error(-1, "网络错误: ${e.message}")
+        }
+    }
+
+    suspend fun pinTasks(ids: List<Int>): Result<Unit> {
+        return try {
+            val resp = api.pinTasks(ids)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "批量置顶失败")
+        } catch (e: Exception) {
+            Result.Error(-1, "网络错误: ${e.message}")
+        }
+    }
+
+    suspend fun unpinTasks(ids: List<Int>): Result<Unit> {
+        return try {
+            val resp = api.unpinTasks(ids)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) Result.Success(Unit)
+            else Result.Error(body?.code ?: resp.code(), body?.message ?: "批量取消置顶失败")
+        } catch (e: Exception) {
+            Result.Error(-1, "网络错误: ${e.message}")
         }
     }
 
@@ -468,6 +489,70 @@ class TaskRepository @Inject constructor(
                 Result.Success(body.data)
             } else {
                 Result.Error(body?.code ?: resp.code(), body?.message ?: "获取日志列表失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 删除指定路径的日志文件
+     * 网页端 DELETE /api/logs 的 body: { "filename": "文件名.log", "path": "目录", "type": "file" }
+     */
+    suspend fun deleteLogFile(directory: String, filename: String): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.deleteLogFile(mapOf(
+                "filename" to filename,
+                "path" to directory,
+                "type" to "file"
+            ))
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "删除日志失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 更新任务
+     * PUT /api/crons
+     */
+    suspend fun updateTask(body: Map<String, @JvmSuppressWildcards Any>): Result<Task> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.updateTask(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "更新任务失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 创建任务
+     * POST /api/crons
+     */
+    suspend fun createTask(body: Map<String, Any>): Result<Task> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.createTask(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "创建任务失败")
             }
         } catch (e: Exception) {
             Result.Error(-1, e.message ?: "网络错误")

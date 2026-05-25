@@ -4,67 +4,50 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.qinglong.app.data.repository.AuthRepository
-import com.qinglong.app.ui.components.QingLongDrawer
 import com.qinglong.app.ui.navigation.Screen
 import com.qinglong.app.ui.navigation.mainDestinations
 import com.qinglong.app.ui.screens.login.LoginScreen
 import com.qinglong.app.ui.screens.login.LoginViewModel
+import com.qinglong.app.ui.screens.splash.SplashScreen
 import com.qinglong.app.ui.screens.task.TaskScreen
-import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QingLongNavHost() {
     val navController = rememberNavController()
     val authViewModel: LoginViewModel = hiltViewModel()
-    val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-
-    val startDestination = if (isLoggedIn) Screen.Task.route else Screen.Login.route
     val currentRoute = navController.currentBackStackEntryFlow.collectAsState(initial = null).value?.destination?.route ?: ""
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            QingLongDrawer(
-                currentRoute = currentRoute,
-                onNavigate = { route ->
-                    scope.launch { drawerState.close() }
-                    navController.navigate(route) {
-                        popUpTo(Screen.Task.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                onSwitchServer = {
-                    scope.launch { drawerState.close() }
-                    // 不调 logout（保留token），只是跳回登录页让用户选服务器
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                onLogout = {
-                    scope.launch { drawerState.close() }
-                    authViewModel.logout()
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
-            )
-        }
-    ) {
+    // 导航菜单状态
+    var showNavMenu by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
-            startDestination = startDestination,
+            startDestination = Screen.Splash.route,
             modifier = Modifier.fillMaxSize()
         ) {
+            // 启动动画页面
+            composable(Screen.Splash.route) {
+                SplashScreen(
+                    onNavigateToHome = {
+                        navController.navigate(Screen.Task.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = {
@@ -77,13 +60,11 @@ fun QingLongNavHost() {
 
             composable(Screen.Task.route) {
                 TaskScreen(
-                    onMenuClick = {
-                        scope.launch { drawerState.open() }
-                    }
+                    onMenuClick = { showNavMenu = true }
                 )
             }
 
-            // Placeholder routes — to be implemented in V1.0+
+            // Placeholder routes
             composable(Screen.Subscription.route) {
                 com.qinglong.app.ui.screens.PlaceholderScreen("订阅管理")
             }
@@ -108,5 +89,86 @@ fun QingLongNavHost() {
                 com.qinglong.app.ui.screens.PlaceholderScreen("应用设置")
             }
         }
+
+        // 导航菜单（覆盖在最上层）
+        if (showNavMenu) {
+            NavigationMenuDialog(
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    showNavMenu = false
+                    navController.navigate(route) {
+                        popUpTo(Screen.Task.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onSwitchServer = {
+                    showNavMenu = false
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onLogout = {
+                    showNavMenu = false
+                    authViewModel.logout()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onDismiss = { showNavMenu = false }
+            )
+        }
     }
+}
+
+@Composable
+fun NavigationMenuDialog(
+    currentRoute: String,
+    onNavigate: (String) -> Unit,
+    onSwitchServer: () -> Unit,
+    onLogout: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("导航菜单") },
+        text = {
+            Column {
+                mainDestinations.forEach { dest ->
+                    val isSelected = currentRoute == dest.route
+                    TextButton(
+                        onClick = { onNavigate(dest.route) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Text(dest.title)
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                TextButton(
+                    onClick = onSwitchServer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("切换服务器")
+                }
+                TextButton(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("退出登录")
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
 }

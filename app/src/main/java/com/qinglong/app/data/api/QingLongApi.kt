@@ -56,7 +56,7 @@ interface QingLongApi {
     suspend fun createTask(@Body body: Map<String, Any>): Response<ApiResponse<Task>>
 
     @PUT("api/crons")
-    suspend fun updateTask(@Body body: Map<String, Any>): Response<ApiResponse<Task>>
+    suspend fun updateTask(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<ApiResponse<Task>>
 
     @HTTP(method = "DELETE", path = "api/crons", hasBody = true)
     suspend fun deleteTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
@@ -72,6 +72,12 @@ interface QingLongApi {
 
     @PUT("api/crons/disable")
     suspend fun disableTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
+
+    @PUT("api/crons/pin")
+    suspend fun pinTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
+
+    @PUT("api/crons/unpin")
+    suspend fun unpinTasks(@Body ids: List<Int>): Response<ApiResponse<Unit>>
 
     // ===================== Subscription =====================
 
@@ -126,6 +132,13 @@ interface QingLongApi {
 
     @DELETE("api/logs/{id}")
     suspend fun deleteLog(@Path("id") id: String): Response<ApiResponse<Unit>>
+
+    /**
+     * 删除指定路径的日志文件
+     * 网页端调用: DELETE /api/logs?t=xxx，body: { "filename": "文件名.log", "path": "目录", "type": "file" }
+     */
+    @HTTP(method = "DELETE", path = "api/logs", hasBody = true)
+    suspend fun deleteLogFile(@Body body: Map<String, @JvmSuppressWildcards Any>): Response<ApiResponse<Unit>>
 
     // ===================== Env Variable =====================
 
