@@ -17,7 +17,7 @@ data class DependenceUiState(
     val searchQuery: String = "",
     val showSearch: Boolean = false,
     // 类型筛选
-    val typeFilter: Int? = null,  // null=全部, 0=nodejs, 1=python3, 2=linux
+    val typeFilter: String? = null,  // null=全部, "nodejs", "python3", "linux"
     // 创建/编辑弹窗
     val showCreateDialog: Boolean = false,
     val showEditDialog: Boolean = false,
@@ -83,7 +83,7 @@ class DependenceViewModel @Inject constructor(
         }
     }
 
-    fun setTypeFilter(type: Int?) {
+    fun setTypeFilter(type: String?) {
         _uiState.update { it.copy(typeFilter = type) }
         loadDependencies()
     }

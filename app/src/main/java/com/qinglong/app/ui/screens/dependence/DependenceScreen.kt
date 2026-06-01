@@ -92,7 +92,7 @@ fun DependenceScreen(
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val types = listOf(null to "全部", 0 to "Node.js", 1 to "Python3", 2 to "Linux")
+                val types = listOf("nodejs" to "Node.js", "python3" to "Python3", "linux" to "Linux")
                 types.forEach { (type, label) ->
                     val isSelected = uiState.typeFilter == type
                     Box(
