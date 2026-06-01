@@ -5,6 +5,13 @@ plugins {
     kotlin("kapt")
 }
 
+// 版本号递增：major.minor.patch → versionCode
+// versionCode = major*10000 + minor*100 + patch
+fun calculateVersionCode(): Int {
+    val parts = "1.2.0".split(".")
+    return parts[0].toInt() * 10000 + parts[1].toInt() * 100 + parts[2].toInt()
+}
+
 android {
     namespace = "com.qinglong.app"
     compileSdk = 35
@@ -13,8 +20,8 @@ android {
         applicationId = "com.qinglong.app"
         minSdk = 34
         targetSdk = 35
-        versionCode = (System.currentTimeMillis() / 1000 % 1000000).toInt()
-        versionName = "1.1.0"
+        versionCode = calculateVersionCode()
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

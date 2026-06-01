@@ -24,7 +24,7 @@ data class AppSettingsUiState(
     val subLogRefreshMs: Int = 3000,
     val scriptRunRefreshMs: Int = 3000,
     // 关于
-    val appVersion: String = "1.1.0",
+    val appVersion: String = "1.2.0",
     val qinglongVersion: String = "",
     val serverAddress: String = "",
     // 服务器管理

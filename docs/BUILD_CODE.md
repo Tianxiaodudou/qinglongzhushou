@@ -1,45 +1,32 @@
-# 编译唯一码规则
+# 编译版本管理
 
-## 概述
+## 版本号规则
 
-每次在本机执行 `build_env/build.sh` 编译时，会自动生成一个 **4位唯一码**，用于标识本次编译的代码快照版本。
+从 v1.2.0 起，不再使用随机唯一码标识编译版本，改用**语义化版本号 + 时间戳**。
 
-## 唯一码格式
-
-- **长度：** 固定 4 位
-- **字符范围：** 大写字母（A-Z）、小写字母（a-z）、数字（0-9）
-- **示例：** `VRc5`、`aB3k`、`X9mL`
-
-## APK 命名规则
+### 版本格式
 
 ```
-{APP_NAME}-v{APP_VERSION}-{唯一码}.apk
+{Major}.{Minor}.{Patch}
 ```
 
-示例：`QingLong-v1.1.0-VRc5.apk`
+- **Major**：主版本号，重大功能重构时递增
+- **Minor**：次版本号，新功能时递增
+- **Patch**：补丁号，问题修复时递增
 
-## 快照机制
+### APK 命名规则
 
-每次编译时，`build.sh` 自动完成：
+```
+{APP_NAME}-v{APP_VERSION}.apk
+```
 
-1. **生成唯一码** — 从 `/dev/urandom` 随机生成 4 位字符
-2. **备份代码快照** — 保存到 `build_backups/{唯一码}/` 目录，包含：
-   - `git_info.txt` — 分支名、commit SHA、commit 说明、编译时间
-   - `uncommitted.diff` — 若有未提交的改动，保存 diff
-   - `source/` — 完整源码副本（排除 build/ 和 .gradle/）
-   - APK 文件副本
-3. **APK 输出** — 存入 `apk_output/`，文件名带唯一码
+示例：`QingLong-v1.2.0.apk`
 
-## 使用场景
+### 快照备份规则
 
-用户与 AI 交流时可直接引用唯一码，AI 通过查询对应快照定位当时的代码状态。
+编译时的代码快照保存到 `build_backups/v{APP_VERSION}_{YYYYMMDD_HHMMSS}/` 目录。
 
-例如：
-> "VRc5 那个版本的任务页面有个 bug..."
-> "对比 aB3k 和 X9mL 两个版本的区别"
+### 手动更新版本号
 
-## 注意事项
-
-- 唯一码与 APK 一一对应，不可重复使用
-- 备份目录 `build_backups/` 仅存在于本机，不提交到 Git 仓库
-- 本文件（BUILD_CODE.md）提交到仓库，供开发者参考
+1. 修改 `app/build.gradle.kts` 中的 `versionName` 和版本函数
+2. 版本号会自动同步到 `versionCode`
