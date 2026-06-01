@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +41,7 @@ import com.qinglong.app.ui.components.*
 import com.qinglong.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Suppress("DEPRECATION")
 @Composable
 fun TaskScreen(
     viewModel: TaskViewModel = hiltViewModel(),
@@ -58,20 +59,29 @@ fun TaskScreen(
         }
     }
 
-    // 拦截系统返回键：搜索状态时关闭搜索回到视图标签
+    // 拦截系统返回键：搜索状态时关闭搜索，多选状态时退出多选
     if (uiState.showSearch) {
         BackHandler {
             viewModel.toggleSearch()
         }
     }
+    if (uiState.isBatchMode) {
+        BackHandler {
+            viewModel.toggleBatchMode()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-        // TopAppBar: [☰] + 定时任务 + [搜索] + [批量]
+        // TopAppBar: [☰] + 定时任务 + [新建] + [刷新] + [搜索] + [批量]
         QingLongTopBar(
             title = "定时任务",
             onMenuClick = onMenuClick,
             actions = {
+                // 新建任务按钮
+                IconButton(onClick = { viewModel.showCreateDialog() }) {
+                    Icon(Icons.Default.Add, contentDescription = "新建")
+                }
                 // 刷新按钮
                 IconButton(onClick = { viewModel.refreshTasks() }) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新")
@@ -117,52 +127,46 @@ fun TaskScreen(
                 onDisableAll = { viewModel.batchDisable() },
                 onPinAll = { viewModel.batchPin() },
                 onUnpinAll = { viewModel.batchUnpin() },
-                onDeleteAll = { viewModel.batchDelete() }
+                onDeleteAll = { viewModel.batchDelete() },
+                onSelectAll = { viewModel.selectAllTasks() },
+                onInvertSelection = { viewModel.invertTaskSelection() }
             )
         }
 
-        // Tab Row — 动态从 API 视图标签加载
+        // Tab Row — 胶囊样式视图标签
         if (uiState.viewTabs.isNotEmpty()) {
-            if (uiState.viewTabs.size <= 4) {
-                // 标签少时用 ScrollableTabRow 或普通 TabRow
-                TabRow(
-                    selectedTabIndex = uiState.selectedTabIndex,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[uiState.selectedTabIndex]),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                ) {
-                    uiState.viewTabs.forEachIndexed { index, tab ->
-                        Tab(
-                            selected = uiState.selectedTabIndex == index,
-                            onClick = { viewModel.selectTab(index) },
-                            text = { Text(tab.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                        )
-                    }
-                }
-            } else {
-                // 标签多时用 ScrollableTabRow
-                ScrollableTabRow(
-                    selectedTabIndex = uiState.selectedTabIndex,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    edgePadding = 0.dp,
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[uiState.selectedTabIndex]),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                ) {
-                    uiState.viewTabs.forEachIndexed { index, tab ->
-                        Tab(
-                            selected = uiState.selectedTabIndex == index,
-                            onClick = { viewModel.selectTab(index) },
-                            text = { Text(tab.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 0.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                uiState.viewTabs.forEachIndexed { index, tab ->
+                    val isSelected = uiState.selectedTabIndex == index
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                if (isSelected) Color.Black
+                                else Color.LightGray.copy(alpha = 0.4f)
+                            )
+                            .border(
+                                width = 1.5.dp,
+                                color = if (isSelected) Color(0xFF00FF66) else Color.Gray.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(50)
+                            )
+                            .clickable { viewModel.selectTab(index) }
+                            .padding(horizontal = 14.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = tab.name,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) Color.White else Color.Black,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -180,181 +184,25 @@ fun TaskScreen(
             uiState.tasks.isEmpty() && isSearching -> EmptyView("未搜索到「${uiState.searchQuery}」相关结果")
             uiState.tasks.isEmpty() -> EmptyView("暂无任务")
             else -> {
-                // 搜索模式提示
-                if (isSearching) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "搜索「${uiState.searchQuery}」的结果（共 ${uiState.tasks.size} 个）",
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-
-                // 分页：每页最多15个任务
-                val pageSize = 15
-                val totalTasks = uiState.tasks.size
-                val totalPages = (totalTasks + pageSize - 1) / pageSize
-                var currentPage by remember { mutableIntStateOf(0) }
-
-                // 切换标签时重置页码
-                LaunchedEffect(uiState.selectedTabIndex) {
-                    currentPage = 0
-                }
-
-                // 当前页任务列表
-                val pageStart = currentPage * pageSize
-                val pageEnd = (pageStart + pageSize).coerceAtMost(totalTasks)
-                val pageTasks = remember(currentPage, uiState.tasks) {
-                    uiState.tasks.subList(pageStart, pageEnd)
-                }
-
-                // 页码指示器 + 任务列表
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // 页码指示器 + 翻页按钮 + 新建按钮
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 左侧：上一页按钮
-                        TextButton(
-                            onClick = {
-                                if (currentPage > 0) currentPage--
-                            },
-                            enabled = currentPage > 0,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowLeft,
-                                contentDescription = "上一页",
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text("上一页", style = MaterialTheme.typography.labelSmall)
-                        }
-
-                        // 中间：页码
-                        if (totalPages > 1) {
-                            Text(
-                                text = "${currentPage + 1} / $totalPages",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            Text(
-                                text = "1 / 1",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        // 右侧：下一页 + 新建按钮
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(
-                                onClick = {
-                                    if (currentPage < totalPages - 1) currentPage++
-                                },
-                                enabled = currentPage < totalPages - 1,
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                            ) {
-                                Text("下一页", style = MaterialTheme.typography.labelSmall)
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowRight,
-                                    contentDescription = "下一页",
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            // 新建任务按钮
-                            FilledIconButton(
-                                onClick = { viewModel.showCreateDialog() },
-                                modifier = Modifier.size(32.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "新建任务",
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
-                        }
-                    }
-
-                    // 任务列表
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Column(
+                Box(modifier = Modifier.fillMaxSize()) {
+                    TaskContent(
+                        uiState = uiState,
+                        isSearching = isSearching,
+                        viewModel = viewModel
+                    )
+                    // 加载覆盖层（切换标签/刷新时显示）
+                    if (uiState.isLoading) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
-                            ) {
-                                // 刷新加载指示器
-                                if (uiState.isRefreshing) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(20.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = "刷新中...",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    pageTasks.forEach { task ->
-                                        val subName = task.sub_id?.let { subId ->
-                                            uiState.subscriptions.find { it.id == subId }?.name
-                                        }
-                                        TaskCard(
-                                            task = task,
-                                            isBatchMode = uiState.isBatchMode,
-                                            isSelected = task.id in uiState.selectedTaskIds,
-                                            subName = subName,
-                                            nextRunTimeText = uiState.nextRunTimeCache[task.id],
-                                            onToggleSelect = { viewModel.toggleTaskSelection(task.id) },
-                                            onRun = { viewModel.runTask(task.id) },
-                                            onStop = { viewModel.stopTask(task.id) },
-                                            onEdit = { viewModel.showEditDialog(task) },
-                                            onDelete = { viewModel.showDeleteConfirm(task) },
-                                            onViewLog = { viewModel.showLogDialog(task) },
-                                            onEnable = { viewModel.enableTask(task.id) },
-                                            onDisable = { viewModel.disableTask(task.id) },
-                                            onPin = { viewModel.pinTask(task.id) },
-                                            onUnpin = { viewModel.unpinTask(task.id) }
-                                        )
-                                    }
-                                }
-                            }
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingAnimation()
                         }
                     }
+                }
+            }
                 }
             }
         }
@@ -427,6 +275,9 @@ fun TaskScreen(
                 task = uiState.logTask!!,
                 logContent = uiState.logContent,
                 isLoading = uiState.isLoadingLog,
+                autoRefreshEnabled = uiState.autoRefreshEnabled,
+                onRefresh = { viewModel.manualRefreshLog() },
+                onToggleAutoRefresh = { viewModel.toggleAutoRefresh() },
                 onDismiss = { viewModel.hideLogDialog() }
             )
         } else if (uiState.isShowingLogDetail && uiState.selectedLogFile != null) {
@@ -457,7 +308,6 @@ fun TaskScreen(
                 onDeleteSelected = { viewModel.deleteSelectedLogFiles() }
             )
         }
-    }
     }
 
     // 删除日志确认弹窗
@@ -546,6 +396,136 @@ fun TaskScreen(
     SnackbarHost(hostState = snackbarHostState)
 }
 
+// ===================== Task Content（提取自 else 分支） =====================
+
+@Composable
+private fun TaskContent(
+    uiState: com.qinglong.app.ui.screens.task.TaskUiState,
+    isSearching: Boolean,
+    viewModel: com.qinglong.app.ui.screens.task.TaskViewModel
+) {
+    // 分页
+    val pageSize = uiState.pageSize
+    val totalTasks = uiState.tasks.size
+    val totalPages = (totalTasks + pageSize - 1) / pageSize
+    var currentPage by remember { mutableIntStateOf(0) }
+
+    // 切换标签时重置页码
+    LaunchedEffect(uiState.selectedTabIndex) {
+        currentPage = 0
+    }
+
+    // 当前页任务列表
+    val pageStart = currentPage * pageSize
+    val pageEnd = (pageStart + pageSize).coerceAtMost(totalTasks)
+    val pageTasks = remember(currentPage, uiState.tasks) {
+        uiState.tasks.subList(pageStart, pageEnd)
+    }
+
+    // 页码指示器 + 任务列表
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+    ) {
+        // 操作栏：搜索提示 / 上一页 / 页码 / 下一页 / 新建（均匀分布）
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 0.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isSearching) {
+                // 搜索模式：搜索提示 + 上一页 + 页码 + 下一页 + 新建
+                Text(
+                    text = "共 ${uiState.tasks.size} 个结果",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            // 上一页按钮
+            TextButton(
+                onClick = {
+                    if (currentPage > 0) currentPage--
+                },
+                enabled = currentPage > 0,
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+            ) {
+                @Suppress("DEPRECATION")
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowLeft,
+                    contentDescription = "上一页",
+                    modifier = Modifier.size(20.dp)
+                )
+                Text("上一页", style = MaterialTheme.typography.labelSmall)
+            }
+
+            // 页码指示器
+            Text(
+                text = "${currentPage + 1} / $totalPages",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // 下一页按钮
+            TextButton(
+                onClick = {
+                    if (currentPage < totalPages - 1) currentPage++
+                },
+                enabled = currentPage < totalPages - 1,
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+            ) {
+                Text("下一页", style = MaterialTheme.typography.labelSmall)
+                @Suppress("DEPRECATION")
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = "下一页",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // 任务列表
+        if (pageTasks.isEmpty()) {
+            EmptyView("当前页无任务")
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 0.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                pageTasks.forEach { task ->
+                    val subName = task.sub_id?.let { subId ->
+                        uiState.subscriptions.find { it.id == subId }?.name
+                    }
+                    TaskCard(
+                        task = task,
+                        isBatchMode = uiState.isBatchMode,
+                        isSelected = task.id in uiState.selectedTaskIds,
+                        subName = subName,
+                        nextRunTimeText = uiState.nextRunTimeCache[task.id],
+                        onToggleSelect = { viewModel.toggleTaskSelection(task.id) },
+                        onRun = { viewModel.runTask(task.id) },
+                        onStop = { viewModel.stopTask(task.id) },
+                        onEdit = { viewModel.showEditDialog(task) },
+                        onDelete = { viewModel.showDeleteConfirm(task) },
+                        onViewLog = { viewModel.showLogDialog(task) },
+                        onEnable = { viewModel.enableTask(task.id) },
+                        onDisable = { viewModel.disableTask(task.id) },
+                        onPin = { viewModel.pinTask(task.id) },
+                        onUnpin = { viewModel.unpinTask(task.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ===================== Task Card =====================
 
 @Composable
@@ -566,292 +546,71 @@ fun TaskCard(
     onPin: () -> Unit,
     onUnpin: () -> Unit
 ) {
-    // === 直接从 task 读取字段，用具体值控制重组 ===
+    // === 直接从 task 读取字段 ===
     val taskName = task.name
     val isRunning = task.isRunning
     val isDisabled = task.isDisabledFlag
     val isQueued = task.isQueued
     val isPinned = task.isPinned == 1
     val lastRunTime = task.lastRunTime
-    val labels = task.labels
-    val subId = task.sub_id
 
-    // === 硬编码颜色常量（零依赖） ===
-    val cGreen = Color(0xFF43A047)
-    val cRed = Color(0xFFE53935)
-    val cBlue = Color(0xFF1976D2)
-    val cOrange = Color(0xFFFFA726)
-    val cGray = Color(0xFF9E9E9E)
-    val cSurface = Color(0xFFFFFFFF)
-    val cOutlineVariant = Color(0xFFCAC4D0)
-    val cOnSurfaceVariant = Color(0xFF49454F)
-    val cSurfaceVariant = Color(0xFFE7E0EC)
-
-    // === 一次性计算所有配置（减少 remember 条目） ===
+    // === 一次性计算配置 ===
     val cfg = remember(isRunning, isDisabled, isQueued, isPinned, lastRunTime, nextRunTimeText) {
-        val bg = when {
-            isRunning -> cGreen.copy(alpha = 0.04f)
-            isDisabled -> cRed.copy(alpha = 0.04f)
-            else -> cSurface
-        }
-        val bdr = if (isRunning || isDisabled) 1.5.dp else 0.5.dp
-        val bdrColor = when {
-            isRunning -> cGreen
-            isDisabled -> cRed
-            isQueued -> cOrange
-            else -> cOutlineVariant
-        }
         val btnIcon = if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow
         val btnDesc = when { isRunning -> "停止"; isDisabled -> "启用"; else -> "运行" }
         val btnColor = when { isRunning -> cRed; isDisabled -> cBlue; else -> cGreen }
         val tagText = when { isDisabled -> "已禁用"; isRunning -> "运行中"; isQueued -> "队列中"; else -> "空闲中" }
         val tagColor = when { isDisabled -> cRed; isRunning -> cGreen; isQueued -> cGray; else -> cGray }
-        val lastRun = if (lastRunTime != null) "上次运行: ${com.qinglong.app.util.CronParser.formatTimestamp(lastRunTime)}" else "上次运行: 暂无"
-        val nextRun = nextRunTimeText?.let { "预计下次: $it" } ?: "预计下次: 无法计算"
-        CardCfg(bg, bdr, bdrColor, btnIcon, btnDesc, btnColor, tagText, tagColor, lastRun, nextRun)
+        CardCfg(tagText, tagColor, btnIcon, btnDesc, btnColor)
     }
 
-    // === 渲染：用 Box + clickable 替代 Card/FilledIconButton/IconButton ===
-    // 外层卡片
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .border(BorderStroke(cfg.borderWidth, cfg.borderColor), RoundedCornerShape(12.dp))
-            .shadow(cfg.elevation, RoundedCornerShape(12.dp))
-            .background(cfg.bgColor)
-            .padding(12.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // === 第一行：名称 + 状态标签 + 运行/停止按钮 ===
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    if (isBatchMode) {
-                        Checkbox(checked = isSelected, onCheckedChange = { onToggleSelect() })
-                        Box(modifier = Modifier.width(4.dp))
-                    }
-                    Text(
-                        text = taskName,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Box(modifier = Modifier.width(8.dp))
-                    // 状态标签（Box + background 替代 Surface）
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(cfg.tagColor.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = cfg.tagText,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = cfg.tagColor
-                        )
-                    }
-                }
-                if (!isBatchMode) {
-                    // 运行/停止按钮（Box + clickable 替代 FilledIconButton）
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(cfg.btnColor.copy(alpha = 0.15f))
-                            .clickable {
-                                when {
-                                    isRunning -> onStop()
-                                    isDisabled -> onEnable()
-                                    else -> onRun()
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(cfg.btnIcon, contentDescription = cfg.btnDesc, modifier = Modifier.size(20.dp), tint = cfg.btnColor)
-                    }
-                }
-            }
-
-            Box(modifier = Modifier.height(6.dp))
-
-            // === 第二行：上次运行 + 预计下次（Box + background 替代 Surface） ===
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(cSurfaceVariant.copy(alpha = 0.5f))
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(14.dp), tint = cOnSurfaceVariant)
-                        Box(modifier = Modifier.width(4.dp))
-                        Text(text = cfg.lastRunText, fontSize = 12.sp, color = cOnSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Box(modifier = Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = cOnSurfaceVariant)
-                        Box(modifier = Modifier.width(4.dp))
-                        Text(text = cfg.nextRunText, fontSize = 12.sp, color = cOnSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-
-            // === 所属订阅 ===
+    // === 信息框内容 ===
+    val infoRows = remember(lastRunTime, nextRunTimeText, subName) {
+        buildList {
+            val lastRun = if (lastRunTime != null) "上次运行: ${com.qinglong.app.util.CronParser.formatTimestamp(lastRunTime)}" else "上次运行: 暂无"
+            val nextRun = nextRunTimeText?.let { "预计下次: $it" } ?: "预计下次: 无法计算"
+            add(InfoRow(Icons.Default.History, "上次运行", lastRun, color = cBlue))
+            add(InfoRow(Icons.Default.Schedule, "预计下次", nextRun, color = cGreen))
             if (subName != null) {
-                Box(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(14.dp), tint = cOnSurfaceVariant)
-                    Box(modifier = Modifier.width(4.dp))
-                    Text(text = subName, fontSize = 12.sp, color = cOnSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-
-            // === 标签 ===
-            if (!labels.isNullOrEmpty()) {
-                Box(modifier = Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    labels.take(3).forEach { label ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFE8DEF8))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(text = label, fontSize = 11.sp)
-                        }
-                    }
-                    if (labels.size > 3) {
-                        Text(text = "+${labels.size - 3}", fontSize = 11.sp, color = cOnSurfaceVariant, modifier = Modifier.padding(start = 2.dp))
-                    }
-                }
-            }
-
-            // === 分隔线（Box 替代 HorizontalDivider） ===
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp)
-                    .height(0.5.dp)
-                    .background(cOutlineVariant.copy(alpha = 0.5f))
-            )
-
-            // === 底部操作栏 ===
-            if (!isBatchMode) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 禁用状态 + 切换开关
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (isDisabled) Icons.Default.NotInterested else Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = if (isDisabled) cRed else cGreen
-                        )
-                        Box(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (isDisabled) "已禁用" else "已启用",
-                            fontSize = 12.sp,
-                            color = if (isDisabled) cRed else cGreen
-                        )
-                        Box(modifier = Modifier.width(8.dp))
-                        // 简化开关（Box + clickable 替代 Switch）
-                        Box(
-                            modifier = Modifier
-                                .width(40.dp)
-                                .height(24.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isDisabled) cRed.copy(alpha = 0.3f) else cGreen.copy(alpha = 0.3f))
-                                .clickable { if (isDisabled) onEnable() else onDisable() }
-                                .padding(horizontal = 2.dp),
-                            contentAlignment = if (isDisabled) Alignment.CenterStart else Alignment.CenterEnd
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isDisabled) cRed else cGreen)
-                            )
-                        }
-                    }
-                    // 操作按钮组
-                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        // 日志
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { onViewLog() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Article, contentDescription = "日志", modifier = Modifier.size(18.dp), tint = cOnSurfaceVariant)
-                        }
-                        // 置顶
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { if (isPinned) onUnpin() else onPin() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.PushPin,
-                                contentDescription = if (isPinned) "取消置顶" else "置顶",
-                                modifier = Modifier.size(18.dp),
-                                tint = if (isPinned) cOrange else cOnSurfaceVariant
-                            )
-                        }
-                        // 编辑
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { onEdit() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑", modifier = Modifier.size(18.dp), tint = cOnSurfaceVariant)
-                        }
-                        // 删除
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { onDelete() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp), tint = cRed.copy(alpha = 0.7f))
-                        }
-                    }
-                }
+                add(InfoRow(Icons.Default.Folder, "所属订阅", subName, color = cOrange))
             }
         }
     }
-}
 
-private data class CardCfg(
-    val bgColor: Color,
-    val borderWidth: Dp,
-    val borderColor: Color,
-    val btnIcon: ImageVector,
-    val btnDesc: String,
-    val btnColor: Color,
-    val tagText: String,
-    val tagColor: Color,
-    val lastRunText: String,
-    val nextRunText: String
-) {
-    val elevation: Dp = if (bgColor == Color(0xFF43A047).copy(alpha = 0.04f)) 4.dp else 1.dp
+    CommonCard(
+        name = taskName,
+        cfg = cfg,
+        isBatchMode = isBatchMode,
+        isSelected = isSelected,
+        isDisabled = isDisabled,
+        infoRows = infoRows,
+        onToggleSelect = onToggleSelect,
+        onToggleEnable = { if (isDisabled) onEnable() else onDisable() },
+        enableSwitchStyle = false, // 圆角矩形按钮样式
+        bottomButtons = {
+            // 运行/停止
+            RunStopButton(
+                isRunning = isRunning,
+                btnIcon = cfg.btnIcon,
+                btnDesc = cfg.btnDesc,
+                btnColor = cfg.btnColor,
+                onRun = onRun,
+                onStop = onStop
+            )
+            // 日志
+            LogButton(onViewLog = onViewLog, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            // 置顶
+            PinButton(
+                isPinned = isPinned,
+                onPin = onPin,
+                onUnpin = onUnpin
+            )
+            // 编辑
+            EditButton(onClick = onEdit)
+            // 删除
+            DeleteButton(onClick = onDelete)
+        }
+    )
 }
 
 // ===================== Log Dialogs =====================
@@ -860,304 +619,12 @@ private data class CardCfg(
  * 历史日志文件列表弹窗（非运行中的任务）
  * 支持多选批量删除
  */
-@Composable
-@OptIn(ExperimentalFoundationApi::class)
-fun TaskLogListDialog(
-    task: Task,
-    logFiles: List<CronLogFile>,
-    isLoading: Boolean,
-    isBatchMode: Boolean,
-    selectedFiles: Set<String>,
-    onDismiss: () -> Unit,
-    onSelectFile: (CronLogFile) -> Unit,
-    onDeleteFile: (CronLogFile) -> Unit = {},
-    onToggleBatchMode: () -> Unit,
-    onToggleFile: (CronLogFile) -> Unit,
-    onSelectAll: () -> Unit,
-    onInvertSelection: () -> Unit,
-    onDeleteSelected: () -> Unit
-) {
-    // 返回键退出多选模式
-    BackHandler(enabled = isBatchMode) {
-        onToggleBatchMode()
-    }
 
-    AlertDialog(
-        onDismissRequest = {
-            if (isBatchMode) {
-                onToggleBatchMode()
-            } else {
-                onDismiss()
-            }
-        },
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isBatchMode) {
-                    // 多选模式：全选 / 反选 / 删除
-                    IconButton(onClick = onSelectAll, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.SelectAll, contentDescription = "全选", modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = onInvertSelection, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.SwapVert, contentDescription = "反选", modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "已选 ${selectedFiles.size} 项",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    // 删除按钮（有选中项才可点击）
-                    FilledIconButton(
-                        onClick = onDeleteSelected,
-                        modifier = Modifier.size(36.dp),
-                        enabled = selectedFiles.isNotEmpty(),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = "删除选中", modifier = Modifier.size(20.dp))
-                    }
-                    // 退出多选
-                    IconButton(onClick = onToggleBatchMode, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "退出多选", modifier = Modifier.size(20.dp))
-                    }
-                } else {
-                    Text(
-                        text = "日志: ${task.name}",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    // 多选入口按钮
-                    if (logFiles.isNotEmpty()) {
-                        IconButton(onClick = onToggleBatchMode, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Default.Checklist, contentDescription = "多选", modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
-        },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-            ) {
-                when {
-                    isLoading -> {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text("加载中...", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                    logFiles.isEmpty() -> {
-                        Text(
-                            text = "暂无历史日志",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                    else -> {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            items(logFiles) { file ->
-                                val dateStr = try {
-                                    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-                                    sdf.format(java.util.Date(file.time.toLong()))
-                                } catch (e: Exception) {
-                                    file.filename
-                                }
-                                val isSelected = file.fullPath in selectedFiles
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .combinedClickable(
-                                            onClick = {
-                                                if (isBatchMode) {
-                                                    onToggleFile(file)
-                                                } else {
-                                                    onSelectFile(file)
-                                                }
-                                            },
-                                            onLongClick = {
-                                                if (!isBatchMode) {
-                                                    onDeleteFile(file)
-                                                }
-                                            }
-                                        ),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isSelected) {
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                        }
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        // 多选模式下的复选框
-                                        if (isBatchMode) {
-                                            Checkbox(
-                                                checked = isSelected,
-                                                onCheckedChange = { onToggleFile(file) },
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                        }
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = dateStr,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                            Text(
-                                                text = file.filename,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        if (!isBatchMode) {
-                                            Icon(
-                                                Icons.Default.ChevronRight,
-                                                contentDescription = "查看",
-                                                modifier = Modifier.size(20.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            if (isBatchMode) {
-                // 多选模式下底部显示操作提示
-                Text(
-                    text = "按返回键退出多选",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                TextButton(onClick = onDismiss) { Text("关闭") }
-            }
-        }
-    )
-}
+// ===================== 日志按钮组件 =====================
 
 /**
- * 日志内容详情弹窗（运行中实时日志 / 历史日志详情）
+ * 任务卡片底部的日志按钮
  */
-@Composable
-fun TaskLogDetailDialog(
-    task: Task,
-    logContent: String,
-    isLoading: Boolean,
-    title: String? = null,
-    onDismiss: () -> Unit,
-    onBack: (() -> Unit)? = null
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (onBack != null) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", modifier = Modifier.size(20.dp))
-                    }
-                }
-                Text(
-                    text = title ?: (if (task.isRunning) "实时日志: ${task.name}" else "日志: ${task.name}"),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-            ) {
-                when {
-                    isLoading -> {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text("加载中...", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                    logContent.startsWith("加载失败") -> {
-                        Text(
-                            text = logContent,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    logContent.isBlank() -> {
-                        Text(
-                            text = "暂无日志",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    else -> {
-                        SelectionContainer {
-                            Text(
-                                text = logContent,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(8.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
-        }
-    )
-}
-
-// ===================== View Management Dialogs =====================
-
 @Composable
 fun ViewManagerDialog(
     views: List<ViewTab>,
@@ -1377,7 +844,7 @@ fun ViewEditDialog(
                                 expanded = subMenuExpanded,
                                 onDismissRequest = { subMenuExpanded = false }
                             ) {
-                                subOptions.forEachIndexed { index, (sub, label) ->
+                                subOptions.forEachIndexed { index, (_, label) ->
                                     DropdownMenuItem(
                                         text = { Text(label) },
                                         onClick = {
@@ -1430,291 +897,6 @@ fun ViewDeleteConfirmDialog(view: ViewTab, onDismiss: () -> Unit, onConfirm: () 
         text = { Text("确定要删除视图「${view.name}」吗？") },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text("删除", color = MaterialTheme.colorScheme.error) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
-}
-
-// ===================== 编辑任务弹窗 =====================
-
-@Composable
-fun TaskEditDialog(
-    task: Task,
-    onDismiss: () -> Unit,
-    onConfirm: (name: String, command: String, schedule: String, labels: List<String>,
-                allowMultipleInstances: Int, logName: String?, taskBefore: String?, taskAfter: String?) -> Unit
-) {
-    var name by remember { mutableStateOf(task.name) }
-    var command by remember { mutableStateOf(task.command) }
-    var schedule by remember { mutableStateOf(task.schedule) }
-    var labelsText by remember { mutableStateOf(task.labels?.joinToString(", ") ?: "") }
-    var allowMultipleInstances by remember { mutableStateOf(task.allow_multiple_instances == 1) }
-    var logName by remember { mutableStateOf(task.log_name ?: "") }
-    var taskBefore by remember { mutableStateOf(task.task_before?.toString() ?: "") }
-    var taskAfter by remember { mutableStateOf(task.task_after?.toString() ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("编辑任务", fontWeight = FontWeight.SemiBold) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 任务名称
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("任务名称") },
-                    placeholder = { Text("如: 每日签到、京东农场、test_log_100") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 命令
-                OutlinedTextField(
-                    value = command,
-                    onValueChange = { command = it },
-                    label = { Text("命令") },
-                    placeholder = { Text("如: task test_log.sh 或 ql repo https://... 或 echo hello") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 定时规则
-                OutlinedTextField(
-                    value = schedule,
-                    onValueChange = { schedule = it },
-                    label = { Text("定时规则 (Cron)") },
-                    placeholder = { Text("格式: 秒(可选) 分 时 日 月 周  如: 0 0 1 1 * 或 0 */5 * * * ?") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 标签
-                OutlinedTextField(
-                    value = labelsText,
-                    onValueChange = { labelsText = it },
-                    label = { Text("标签 (逗号分隔)") },
-                    placeholder = { Text("如: 农场, 签到, 日常  用于分类和搜索") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 实例模式
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("多实例模式", modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = allowMultipleInstances,
-                            onCheckedChange = { allowMultipleInstances = it }
-                        )
-                    }
-                    Text(
-                        text = if (allowMultipleInstances) "允许同时运行多个实例" else "同一时间只能运行一个实例（默认）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // 日志名称
-                OutlinedTextField(
-                    value = logName,
-                    onValueChange = { logName = it },
-                    label = { Text("日志名称") },
-                    placeholder = { Text("留空=默认目录  /dev/null=不记录日志") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 执行前命令
-                OutlinedTextField(
-                    value = taskBefore,
-                    onValueChange = { taskBefore = it },
-                    label = { Text("执行前命令") },
-                    placeholder = { Text("任务开始前执行的命令，如: 发送通知、检查网络等（可选）") },
-                    minLines = 2,
-                    maxLines = 4,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 执行后命令
-                OutlinedTextField(
-                    value = taskAfter,
-                    onValueChange = { taskAfter = it },
-                    label = { Text("执行后命令") },
-                    placeholder = { Text("任务结束后执行的命令，如: 发送完成通知、清理文件等（可选）") },
-                    minLines = 2,
-                    maxLines = 4,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val parsedLabels = labelsText.split(",")
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                onConfirm(
-                    name.trim(),
-                    command.trim(),
-                    schedule.trim(),
-                    parsedLabels,
-                    if (allowMultipleInstances) 1 else 0,
-                    logName.trim().ifBlank { null },
-                    taskBefore.trim().ifBlank { null },
-                    taskAfter.trim().ifBlank { null }
-                )
-            }) { Text("保存") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
-}
-
-// ===================== 新建任务弹窗 =====================
-
-@Composable
-fun TaskCreateDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (name: String, command: String, schedule: String, labels: List<String>,
-                allowMultipleInstances: Int, logName: String?, taskBefore: String?, taskAfter: String?) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var command by remember { mutableStateOf("") }
-    var schedule by remember { mutableStateOf("") }
-    var labelsText by remember { mutableStateOf("") }
-    var allowMultipleInstances by remember { mutableStateOf(false) }
-    var logName by remember { mutableStateOf("") }
-    var taskBefore by remember { mutableStateOf("") }
-    var taskAfter by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("新建任务", fontWeight = FontWeight.SemiBold) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 任务名称
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("任务名称") },
-                    placeholder = { Text("如: 每日签到、京东农场、test_log_100") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 命令
-                OutlinedTextField(
-                    value = command,
-                    onValueChange = { command = it },
-                    label = { Text("命令") },
-                    placeholder = { Text("如: task test_log.sh 或 ql repo https://... 或 echo hello") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 定时规则
-                OutlinedTextField(
-                    value = schedule,
-                    onValueChange = { schedule = it },
-                    label = { Text("定时规则 (Cron)") },
-                    placeholder = { Text("格式: 秒(可选) 分 时 日 月 周  如: 0 0 1 1 * 或 0 */5 * * * ?") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 标签
-                OutlinedTextField(
-                    value = labelsText,
-                    onValueChange = { labelsText = it },
-                    label = { Text("标签 (逗号分隔)") },
-                    placeholder = { Text("如: 农场, 签到, 日常  用于分类和搜索") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 实例模式
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("多实例模式", modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = allowMultipleInstances,
-                            onCheckedChange = { allowMultipleInstances = it }
-                        )
-                    }
-                    Text(
-                        text = if (allowMultipleInstances) "允许同时运行多个实例" else "同一时间只能运行一个实例（默认）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // 日志名称
-                OutlinedTextField(
-                    value = logName,
-                    onValueChange = { logName = it },
-                    label = { Text("日志名称") },
-                    placeholder = { Text("留空=默认目录  /dev/null=不记录日志") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 执行前命令
-                OutlinedTextField(
-                    value = taskBefore,
-                    onValueChange = { taskBefore = it },
-                    label = { Text("执行前命令") },
-                    placeholder = { Text("任务开始前执行的命令，如: 发送通知、检查网络等（可选）") },
-                    minLines = 2,
-                    maxLines = 4,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 执行后命令
-                OutlinedTextField(
-                    value = taskAfter,
-                    onValueChange = { taskAfter = it },
-                    label = { Text("执行后命令") },
-                    placeholder = { Text("任务结束后执行的命令，如: 发送完成通知、清理文件等（可选）") },
-                    minLines = 2,
-                    maxLines = 4,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val parsedLabels = labelsText.split(",")
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                onConfirm(
-                    name.trim(),
-                    command.trim(),
-                    schedule.trim(),
-                    parsedLabels,
-                    if (allowMultipleInstances) 1 else 0,
-                    logName.trim().ifBlank { null },
-                    taskBefore.trim().ifBlank { null },
-                    taskAfter.trim().ifBlank { null }
-                )
-            }) { Text("创建") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消") }

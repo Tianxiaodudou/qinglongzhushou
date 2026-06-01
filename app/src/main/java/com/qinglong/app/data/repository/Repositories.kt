@@ -558,4 +558,996 @@ class TaskRepository @Inject constructor(
             Result.Error(-1, e.message ?: "网络错误")
         }
     }
+
+    // ====== Scripts (脚本管理) ======
+
+    /**
+     * 获取脚本列表
+     * GET /api/scripts
+     */
+    suspend fun getScripts(): Result<List<ScriptItem>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getScripts()
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取脚本列表失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 获取脚本详情（内容）
+     * GET /api/scripts/detail?file=xxx&path=xxx
+     * 从 script.key 按最后一个 '/' 拆分为 file 和 path
+     * 注意：API 返回的 data 是字符串（脚本内容），不是 ScriptItem 对象
+     */
+    suspend fun getScriptDetail(key: String): Result<String> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            // 从 key 中拆分 file 和 path
+            val lastSlash = key.lastIndexOf('/')
+            val file = if (lastSlash >= 0) key.substring(lastSlash + 1) else key
+            val path = if (lastSlash >= 0) key.substring(0, lastSlash) else ""
+            val resp = a.getScriptDetail(file, path)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                val httpCode = resp.code()
+                val apiCode = body?.code
+                val apiMsg = body?.message
+                Result.Error(
+                    apiCode ?: httpCode,
+                    apiMsg ?: "HTTP $httpCode: 获取脚本详情失败"
+                )
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 创建脚本
+     * POST /api/scripts
+     */
+    suspend fun createScript(body: Map<String, Any>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.createScript(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "创建脚本失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 更新脚本
+     * PUT /api/scripts
+     */
+    suspend fun updateScript(body: Map<String, Any>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.updateScript(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "更新脚本失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 删除脚本
+     * DELETE /api/scripts
+     * body: {filename, path, type}
+     */
+    suspend fun deleteScripts(filename: String, path: String, type: String = "file"): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val body = mapOf<String, Any>(
+                "filename" to filename,
+                "path" to path,
+                "type" to type
+            )
+            val resp = a.deleteScripts(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "删除脚本失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 运行脚本
+     * PUT /api/scripts/run
+     * body: {filename, path, content}
+     */
+    suspend fun runScript(filename: String, path: String, content: String): Result<Int> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val body = mapOf<String, Any>(
+                "filename" to filename,
+                "path" to path,
+                "content" to content
+            )
+            val resp = a.runScript(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(b.data ?: 0)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "运行脚本失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 停止运行脚本
+     * PUT /api/scripts/stop
+     * body: {filename, path, pid}
+     */
+    suspend fun stopScript(filename: String, path: String, pid: Int): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val body = mapOf<String, Any>(
+                "filename" to filename,
+                "path" to path,
+                "pid" to pid
+            )
+            val resp = a.stopScript(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "停止脚本失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 重命名脚本
+     * PUT /api/scripts/rename
+     * body: {filename, path, newFilename}
+     */
+    suspend fun renameScript(filename: String, path: String, newFilename: String): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val body = mapOf<String, Any>(
+                "filename" to filename,
+                "path" to path,
+                "newFilename" to newFilename
+            )
+            val resp = a.renameScript(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "重命名脚本失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    // ====== Subscriptions (订阅管理) ======
+
+    /**
+     * 获取订阅列表
+     * GET /api/subscriptions
+     */
+    suspend fun getSubscriptions(search: String? = null): Result<List<Subscription>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getSubscriptions(search)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data ?: emptyList())
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取订阅列表失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 创建订阅
+     * POST /api/subscriptions
+     */
+    suspend fun createSubscription(body: Map<String, Any>): Result<Subscription> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.createSubscription(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "创建订阅失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 更新订阅
+     * PUT /api/subscriptions
+     */
+    suspend fun updateSubscription(body: Map<String, Any>): Result<Subscription> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.updateSubscription(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "更新订阅失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 删除订阅
+     * DELETE /api/subscriptions (body: [id])
+     */
+    suspend fun deleteSubscription(id: Int, force: Boolean = false): Result<Unit> {
+        return deleteSubscriptions(listOf(id), force)
+    }
+
+    /**
+     * 批量删除订阅
+     * DELETE /api/subscriptions (body: [ids], query: ?force=true)
+     */
+    suspend fun deleteSubscriptions(ids: List<Int>, force: Boolean = false): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.deleteSubscriptions(ids, force.takeIf { it })
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "删除订阅失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 运行订阅（单个）
+     * 官方没有单个运行 API，统一用批量接口传单个 id
+     * PUT /api/subscriptions/run (body: [id])
+     */
+    suspend fun runSubscription(id: Int): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.runSubscriptions(listOf(id))
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "运行订阅失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量启用订阅
+     * PUT /api/subscriptions/enable
+     */
+    suspend fun batchEnableSubscriptions(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.enableSubscriptions(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量启用失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量禁用订阅
+     * PUT /api/subscriptions/disable
+     */
+    suspend fun batchDisableSubscriptions(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.disableSubscriptions(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量禁用失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量运行订阅
+     * PUT /api/subscriptions/run
+     */
+    suspend fun batchRunSubscriptions(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.runSubscriptions(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量运行失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量停止订阅
+     * PUT /api/subscriptions/stop
+     */
+    suspend fun batchStopSubscriptions(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.stopSubscriptions(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量停止失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 获取订阅实时日志
+     * 官方: GET /api/subscriptions/:id/log
+     * 返回 data 是字符串
+     */
+    suspend fun getSubscriptionLog(subId: Int): Result<String> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getSubscriptionLog(subId)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data ?: "")
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取订阅日志失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 获取订阅历史日志列表
+     * 官方: GET /api/subscriptions/:id/logs
+     * 返回 data 是日志文件列表
+     */
+    suspend fun getSubscriptionLogFiles(subId: Int): Result<List<CronLogFile>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getSubscriptionLogFiles(subId)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data ?: emptyList())
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取订阅日志列表失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    // ====== Logs (日志管理) ======
+
+    /**
+     * 获取日志文件列表
+     * GET /api/logs
+     */
+    suspend fun getLogFiles(): Result<List<LogFile>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getLogFiles()
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data ?: emptyList())
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取日志列表失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 获取日志详情（历史日志文件内容）
+     * 官方: GET /api/logs/detail?file=xxx&path=xxx
+     * 需要 file 和 path 两个参数
+     * 返回 data 是字符串（日志内容），不是对象
+     */
+    suspend fun getLogDetail(file: String, path: String = ""): Result<String> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getLogDetail(file, path)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data ?: "")
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取日志详情失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    // ====== Env Variables (环境变量) ======
+
+    /**
+     * 获取环境变量列表
+     * GET /api/envs
+     */
+    suspend fun getEnvVariables(search: String? = null): Result<List<EnvVariable>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getEnvVariables(search)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(body.data ?: emptyList())
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取环境变量失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 创建环境变量
+     * POST /api/envs  body: [{name, value, remarks}]
+     */
+    suspend fun createEnvVariable(body: Map<String, Any>): Result<EnvVariable> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.createEnvVariables(listOf(body))
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data.first())
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "创建环境变量失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 更新环境变量
+     * PUT /api/envs  body: {id, name, value, remarks}
+     */
+    suspend fun updateEnvVariable(id: Int, body: Map<String, Any>): Result<EnvVariable> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val fullBody = body.toMutableMap()
+            fullBody["id"] = id
+            val resp = a.updateEnvVariable(fullBody)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "更新环境变量失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 删除环境变量
+     * DELETE /api/envs  body: [id]
+     */
+    suspend fun deleteEnvVariable(id: Int): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.deleteEnvVariables(listOf(id))
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "删除环境变量失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 切换环境变量状态（启用/禁用）
+     * PUT /api/envs/enable 或 PUT /api/envs/disable  body: [id]
+     */
+    suspend fun toggleEnvVariableStatus(id: Int, enable: Boolean): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = if (enable) a.enableEnvVariables(listOf(id)) else a.disableEnvVariables(listOf(id))
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "切换状态失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 置顶环境变量
+     * PUT /api/envs/pin  body: [id]
+     */
+    suspend fun pinEnvVariable(id: Int): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.pinEnvVariables(listOf(id))
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "置顶失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 取消置顶环境变量
+     * PUT /api/envs/unpin  body: [id]
+     */
+    suspend fun unpinEnvVariable(id: Int): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.unpinEnvVariables(listOf(id))
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "取消置顶失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量启用环境变量
+     * PUT /api/envs/enable  body: [ids]
+     */
+    suspend fun batchEnableEnvVariables(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.enableEnvVariables(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量启用失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量禁用环境变量
+     * PUT /api/envs/disable  body: [ids]
+     */
+    suspend fun batchDisableEnvVariables(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.disableEnvVariables(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量禁用失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量置顶环境变量
+     * PUT /api/envs/pin  body: [ids]
+     */
+    suspend fun batchPinEnvVariables(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.pinEnvVariables(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量置顶失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量取消置顶环境变量
+     * PUT /api/envs/unpin  body: [ids]
+     */
+    suspend fun batchUnpinEnvVariables(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.unpinEnvVariables(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量取消置顶失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 批量删除环境变量
+     * DELETE /api/envs  body: [ids]
+     */
+    suspend fun batchDeleteEnvVariables(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.deleteEnvVariables(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "批量删除失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    // ====== System (系统状态) ======
+
+    /**
+     * 获取系统状态
+     * GET /api/system
+     */
+    suspend fun getSystemStatus(): Result<SystemStatus> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getSystemStatus()
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取系统状态失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 获取系统版本信息
+     * GET /api/system （青龙源码根接口返回 version、publishTime、branch）
+     */
+    suspend fun getSystemVersion(): Result<SystemVersionInfo> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getSystemVersion()
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                val version = body.data["version"] as? String ?: ""
+                val buildTime = body.data["publishTime"]?.toString()
+                val branch = body.data["branch"] as? String
+                Result.Success(SystemVersionInfo(version, buildTime, branch, null))
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取系统版本失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+}
+
+@Singleton
+class ConfigRepository @Inject constructor(
+    private val apiManager: ApiManager
+) {
+    private val api: QingLongApi get() = apiManager.getApi()
+        ?: throw IllegalStateException("ApiManager not initialized - please login first")
+
+    suspend fun getConfigFiles(): Result<List<ConfigFileItem>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getConfigFiles()
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取配置文件列表失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    suspend fun getConfigDetail(path: String): Result<String> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getConfigDetail(path)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取配置文件内容失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    suspend fun saveConfig(name: String, content: String): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val bodyMap = mapOf<String, Any>("name" to name, "content" to content)
+            val resp = a.saveConfig(bodyMap)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "保存配置文件失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+}
+
+// ===================== DependenceRepository =====================
+
+@Singleton
+class DependenceRepository @Inject constructor(
+    private val apiManager: ApiManager
+) {
+    /**
+     * 获取依赖列表
+     * GET /api/dependencies
+     */
+    suspend fun getDependencies(
+        searchValue: String? = null,
+        type: String? = null,
+        status: String? = null
+    ): Result<List<Dependence>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getDependencies(searchValue, type, status)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取依赖列表失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 创建依赖
+     * POST /api/dependencies
+     */
+    suspend fun createDependencies(body: List<Map<String, Any>>): Result<List<Dependence>> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.createDependencies(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "创建依赖失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 更新依赖
+     * PUT /api/dependencies
+     */
+    suspend fun updateDependence(body: Map<String, Any>): Result<Dependence> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.updateDependence(body)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200 && b.data != null) {
+                Result.Success(b.data)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "更新依赖失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 删除依赖
+     * DELETE /api/dependencies
+     */
+    suspend fun deleteDependencies(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.deleteDependencies(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "删除依赖失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 强制删除依赖
+     * DELETE /api/dependencies/force
+     */
+    suspend fun forceDeleteDependencies(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.forceDeleteDependencies(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "强制删除依赖失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 重新安装依赖
+     * PUT /api/dependencies/reinstall
+     */
+    suspend fun reinstallDependencies(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.reinstallDependencies(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "重新安装依赖失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 取消安装依赖
+     * PUT /api/dependencies/cancel
+     */
+    suspend fun cancelDependencies(ids: List<Int>): Result<Unit> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.cancelDependencies(ids)
+            val b = resp.body()
+            if (resp.isSuccessful && b != null && b.code == 200) {
+                Result.Success(Unit)
+            } else {
+                Result.Error(b?.code ?: resp.code(), b?.message ?: "取消安装依赖失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
+
+    /**
+     * 获取依赖详情（含日志）
+     * GET /api/dependencies/:id
+     */
+    suspend fun getDependenceDetail(id: Int): Result<Dependence> {
+        return try {
+            val a = apiManager.getApi()
+            if (a == null) return Result.Error(-1, "未登录")
+            val resp = a.getDependenceDetail(id)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null && body.code == 200 && body.data != null) {
+                Result.Success(body.data)
+            } else {
+                Result.Error(body?.code ?: resp.code(), body?.message ?: "获取依赖详情失败")
+            }
+        } catch (e: Exception) {
+            Result.Error(-1, e.message ?: "网络错误")
+        }
+    }
 }

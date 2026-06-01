@@ -13,13 +13,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.qinglong.app.ui.QingLongNavHost
-import com.qinglong.app.ui.theme.QingLongTheme
+import com.qinglong.app.util.ThemeManager
 import com.qinglong.app.util.CrashHandler
 import com.qinglong.app.util.CrashReportDialog
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var themeManager: ThemeManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,7 +40,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            QingLongTheme {
+            themeManager.QingLongThemeContent {
                 var showCrashDialog by remember { mutableStateOf(latestCrashLog != null) }
                 val crashLog = remember { latestCrashLog }
 

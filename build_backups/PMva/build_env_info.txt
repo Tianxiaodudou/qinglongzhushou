@@ -1,0 +1,54 @@
+=== Build Environment Info ===
+
+Build Code: PMva
+Build Time: 2026-05-31 18:08:28
+Build Host: fnos (Linux 6.18.18-trim x86_64)
+
+--- JDK ---
+openjdk version "17.0.19" 2026-04-21 LTS
+OpenJDK Runtime Environment Corretto-17.0.19.10.1 (build 17.0.19+10-LTS)
+OpenJDK 64-Bit Server VM Corretto-17.0.19.10.1 (build 17.0.19+10-LTS, mixed mode, sharing)
+
+--- Android SDK ---
+Platforms: android-34 android-35 
+BuildTools: 34.0.0 36.0.0 
+CmdlineTools: NOTICE.txt bin latest lib source.properties 
+
+--- Gradle ---
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+WrapperJar: gradle-wrapper.jar (Gradle Wrapper)
+
+--- Project Build Config ---
+AGP: 8.2.2
+Kotlin: 1.9.22
+Hilt: 2.48.1
+Compose Compiler Extension: 1.5.10
+compileSdk: 35 | targetSdk: 35 | minSdk: 34
+App Version: 1.1.0
+App Package: com.qinglong.app
+Minify (R8): enabled for both debug and release
+Signing: PKCS12 (qinglong.p12, alias: qinglong)
+
+--- Key Dependencies ---
+implementation("androidx.core:core-ktx:1.13.1")
+implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+implementation("androidx.activity:activity-compose:1.9.3")
+implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+implementation("androidx.compose.ui:ui")
+implementation("androidx.compose.ui:ui-graphics")
+implementation("androidx.compose.ui:ui-tooling-preview")
+implementation("androidx.compose.material3:material3")
+implementation("androidx.compose.material:material-icons-extended")
+implementation("androidx.navigation:navigation-compose:2.8.4")
+implementation("com.google.dagger:hilt-android:2.48.1")
+implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
+implementation("com.squareup.retrofit2:retrofit:2.11.0")
+implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+implementation("com.squareup.okhttp3:okhttp:4.12.0")
+implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+implementation("androidx.security:security-crypto:1.1.0-alpha06")
+implementation("androidx.datastore:datastore-preferences:1.1.1")
+implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+implementation("io.coil-kt:coil-compose:2.7.0")

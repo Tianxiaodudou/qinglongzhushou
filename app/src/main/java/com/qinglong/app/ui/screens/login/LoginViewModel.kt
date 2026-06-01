@@ -24,6 +24,9 @@ data class LoginUiState(
     val port: String = "5700",
     val username: String = "",
     val password: String = "",
+    // Two-factor auth
+    val needsTwoFactor: Boolean = false,
+    val twoFactorCode: String = "",
     // Server list dialog
     val showServerDialog: Boolean = false,
     val savedServers: List<ServerConfig> = emptyList(),
@@ -66,6 +69,12 @@ class LoginViewModel @Inject constructor(
         _uiState.update { it.copy(password = password, error = null) }
     }
 
+    fun updateTwoFactorCode(code: String) {
+        if (code.length <= 6) {
+            _uiState.update { it.copy(twoFactorCode = code) }
+        }
+    }
+
     fun login() {
         val state = _uiState.value
         if (state.domain.isBlank()) {
@@ -88,7 +97,6 @@ class LoginViewModel @Inject constructor(
                 // 根据用户输入的服务器信息动态创建 API 实例
                 val port = state.port.toIntOrNull() ?: 5700
                 val protocol = if (state.isHttps) "https" else "http"
-                val baseUrl = "${protocol}://${state.domain}:${port}"
                 val api = NetworkModule.createApi(
                     protocol = protocol,
                     domain = state.domain,
@@ -100,28 +108,49 @@ class LoginViewModel @Inject constructor(
                 val response = api.login(loginRequest)
                 val body = response.body()
 
-                if (response.isSuccessful && body != null && body.code == 200 && body.data != null) {
-                    val token = body.data.token
-                    authRepository.saveToken(token)
-                    authRepository.saveCredentials(state.username, state.password)
+                if (response.isSuccessful && body != null) {
+                    if (body.code == 420) {
+                        // ===== 需要两步验证 =====
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                needsTwoFactor = true,
+                                twoFactorCode = ""
+                            )
+                        }
+                    } else if (body.code == 200 && body.data != null) {
+                        // ===== 登录成功 =====
+                        val token = body.data.token
+                        authRepository.saveToken(token)
+                        authRepository.saveCredentials(state.username, state.password)
 
-                    // 通过 ApiManager 设置正确的 API 实例，让所有 Repository 都能用
-                    apiManager.createAndSetApi(protocol, state.domain, port)
+                        apiManager.createAndSetApi(protocol, state.domain, port)
 
-                    val serverConfig = ServerConfig(
-                        id = UUID.randomUUID().toString(),
-                        name = state.domain,
-                        protocol = if (state.isHttps) "https" else "http",
-                        domain = state.domain,
-                        port = port,
-                        username = state.username,
-                        isDefault = true
-                    )
-                    authRepository.saveServer(serverConfig, password = state.password)
+                        val serverConfig = ServerConfig(
+                            id = UUID.randomUUID().toString(),
+                            name = state.domain,
+                            protocol = if (state.isHttps) "https" else "http",
+                            domain = state.domain,
+                            port = port,
+                            username = state.username,
+                            isDefault = true
+                        )
+                        authRepository.saveServer(serverConfig, password = state.password)
 
-                    _uiState.update { it.copy(isLoading = false, success = true) }
+                        _uiState.update { it.copy(isLoading = false, success = true) }
+                    } else {
+                        val errorMsg = when (response.code()) {
+                            401 -> "认证失败，请检查账号密码"
+                            404 -> "服务器地址错误，请检查域名和端口"
+                            500 -> "服务器内部错误"
+                            else -> "登录失败 (HTTP ${response.code()})"
+                        }
+                        _uiState.update {
+                            it.copy(isLoading = false, error = errorMsg)
+                        }
+                    }
                 } else {
-                    val errorMsg = body?.message ?: when (response.code()) {
+                    val errorMsg = when (response.code()) {
                         401 -> "认证失败，请检查账号密码"
                         404 -> "服务器地址错误，请检查域名和端口"
                         500 -> "服务器内部错误"
@@ -149,6 +178,75 @@ class LoginViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * 两步验证登录
+     * 先验证 2FA code，通过后返回普通登录结果
+     */
+    fun loginWithTwoFactor() {
+        val state = _uiState.value
+        if (state.twoFactorCode.length < 6) {
+            _uiState.update { it.copy(error = "请输入6位验证码") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            try {
+                val port = state.port.toIntOrNull() ?: 5700
+                val protocol = if (state.isHttps) "https" else "http"
+                val api = NetworkModule.createApi(
+                    protocol = protocol,
+                    domain = state.domain,
+                    port = port,
+                    okHttpClient = okHttpClient
+                )
+
+                val body = mapOf(
+                    "code" to state.twoFactorCode,
+                    "username" to state.username,
+                    "password" to state.password
+                )
+                val response = api.twoFactorLogin(body)
+                val respBody = response.body()
+
+                if (response.isSuccessful && respBody != null && respBody.code == 200 && respBody.data != null) {
+                    val token = respBody.data.token
+                    authRepository.saveToken(token)
+                    authRepository.saveCredentials(state.username, state.password)
+
+                    apiManager.createAndSetApi(protocol, state.domain, port)
+
+                    val serverConfig = ServerConfig(
+                        id = UUID.randomUUID().toString(),
+                        name = state.domain,
+                        protocol = protocol,
+                        domain = state.domain,
+                        port = port,
+                        username = state.username,
+                        isDefault = true
+                    )
+                    authRepository.saveServer(serverConfig, password = state.password)
+
+                    _uiState.update { it.copy(isLoading = false, success = true) }
+                } else {
+                    val errorMsg = respBody?.message ?: "验证码错误，请重试"
+                    _uiState.update {
+                        it.copy(isLoading = false, error = errorMsg)
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isLoading = false, error = "网络错误: ${e.localizedMessage ?: "未知错误"}")
+                }
+            }
+        }
+    }
+
+    fun cancelTwoFactor() {
+        _uiState.update { it.copy(needsTwoFactor = false, twoFactorCode = "") }
     }
 
     fun logout() {
@@ -235,5 +333,46 @@ class LoginViewModel @Inject constructor(
 
     fun cancelDelete() {
         _uiState.update { it.copy(showDeleteConfirm = false, editingServer = null) }
+    }
+
+    /**
+     * 获取当前服务器配置（供 Drawer 显示用）
+     */
+    fun getServerConfig(): ServerConfig? = authRepository.loadServerConfig()
+
+    /**
+     * 获取青龙面板版本号（供 Drawer 显示用）
+     * 使用 api/system 端点（不需要 Token 认证）
+     */
+    fun getQinglongVersion(): String? {
+        return try {
+            val config = getServerConfig() ?: return null
+            val url = "${config.protocol}://${config.domain}:${config.port}/api/system"
+            val json = java.net.URL(url).readText()
+            @Suppress("UNCHECKED_CAST")
+            val obj = com.google.gson.Gson().fromJson(json, Map::class.java) as Map<String, Any>
+            @Suppress("UNCHECKED_CAST")
+            val data = obj["data"] as? Map<String, Any> ?: return null
+            data["version"] as? String
+        } catch (e: Exception) { null }
+    }
+
+    /**
+     * 选择服务器并直接登录（供 Drawer 切换服务器用）
+     */
+    fun selectServerAndLogin(config: ServerConfig) {
+        val password = authRepository.getPassword(config.id) ?: ""
+        _uiState.update {
+            it.copy(
+                isHttps = config.protocol == "https",
+                domain = config.domain,
+                port = config.port.toString(),
+                username = config.username,
+                password = password,
+                showServerDialog = false
+            )
+        }
+        // 直接调用 login()
+        login()
     }
 }

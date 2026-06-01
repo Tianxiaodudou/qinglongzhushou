@@ -253,6 +253,64 @@ fun LoginScreen(
                         )
                     )
 
+                    // ===== Two-factor auth code input =====
+                    if (uiState.needsTwoFactor) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Security,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "两步验证",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Text(
+                            text = "该面板已开启两步验证，请输入验证器应用上的 6 位验证码",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        OutlinedTextField(
+                            value = uiState.twoFactorCode,
+                            onValueChange = viewModel::updateTwoFactorCode,
+                            label = { Text("验证码") },
+                            placeholder = { Text("123456") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Lock, null)
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    focusManager.clearFocus()
+                                    viewModel.loginWithTwoFactor()
+                                }
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+
+                        Spacer(Modifier.height(4.dp))
+                    }
+
                     // Error message
                     uiState.error?.let { error ->
                         Text(
@@ -266,9 +324,9 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Login Button
+                    // Login / Verify Button
                     Button(
-                        onClick = viewModel::login,
+                        onClick = if (uiState.needsTwoFactor) viewModel::loginWithTwoFactor else viewModel::login,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
@@ -287,9 +345,23 @@ fun LoginScreen(
                             )
                         } else {
                             Text(
-                                text = "登录",
+                                text = if (uiState.needsTwoFactor) "验证" else "登录",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    // Cancel 2FA and go back
+                    if (uiState.needsTwoFactor) {
+                        TextButton(
+                            onClick = { viewModel.cancelTwoFactor() },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text(
+                                text = "返回登录页面",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

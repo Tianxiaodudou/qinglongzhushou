@@ -76,8 +76,8 @@ data class Task(
     val isQueued: Boolean get() = status?.toDouble() == 0.5
     // 计算属性：是否空闲中（status=1 且 isDisabled!=1）
     val isIdle: Boolean get() = status?.toDouble() == 1.0 && isDisabled != 1
-    // 计算属性：是否已禁用（isDisabled=1 且 status=1/idle）
-    val isDisabledFlag: Boolean get() = isDisabled == 1 && (status == null || status.toDouble() == 1.0)
+    // 计算属性：是否已禁用（只依赖 isDisabled 字段，不依赖 status）
+    val isDisabledFlag: Boolean get() = isDisabled == 1
     // 兼容旧属性
     @Deprecated("Use isRunning instead")
     val isActive: Boolean get() = isRunning
@@ -107,12 +107,19 @@ data class Subscription(
     val blacklist: String?,       // 黑名单
     val extensions: String?,      // 扩展名
     val branch: String?,          // 分支
-    val schedule_type: String?,   // 调度类型
+    val schedule_type: String?,   // 调度类型（cron/interval）
     val autoAddCron: Int?,        // 自动添加定时
     val autoDelCron: Int?,        // 自动删除定时
     val log_path: String?,        // 日志路径
     val createdAt: String?,       // 创建时间
-    val updatedAt: String?        // 更新时间
+    val updatedAt: String?,       // 更新时间
+    val dependences: String?,     // 依赖
+    val sub_before: String?,      // 执行前命令
+    val sub_after: String?,       // 执行后命令
+    val pull_type: String?,       // 拉取类型
+    val pull_option: Any?,        // 拉取选项（可能是字符串或对象 {"type": "hard"}）
+    val proxy: String?,           // 代理
+    val interval_schedule: Map<String, Any>? = null  // 间隔调度 {type: "days"/"hours", value: number}
 )
 
 // ===================== Log =====================
@@ -143,11 +150,13 @@ data class TaskLog(
 // ===================== Env Variable =====================
 
 data class EnvVariable(
-    @SerializedName("_id") val id: String,
+    val id: Int,
     val name: String,
     val value: String,
     val remarks: String?,
-    val timestamp: Long
+    val timestamp: String? = null,
+    val status: Int? = null,           // 0=启用, 1=禁用
+    val isPinned: Int? = null          // 0=未置顶, 1=已置顶
 )
 
 // ===================== System Status =====================
@@ -240,3 +249,136 @@ data class ViewsResponse(
     val data: List<ViewItem>?,
     val message: String
 )
+
+// ===================== Script =====================
+
+data class ScriptItem(
+    val title: String = "",
+    val key: String = "",
+    val type: String = "",          // "file" | "directory"
+    val parent: String = "",
+    val children: List<ScriptItem>? = null,
+    val size: Long? = null,
+    val createTime: Long? = null,
+    val content: String? = null
+)
+
+// ===================== System Version =====================
+
+data class SystemVersionInfo(
+    val version: String,
+    val buildTime: String?,
+    val branch: String?,
+    val commit: String?
+)
+
+// ===================== Login Log =====================
+
+data class LoginLogEntry(
+    val id: String = "",
+    val timestamp: Long = 0L,
+    val address: String = "",
+    val ip: String = "",
+    val platform: String = "",
+    val status: Int = 0
+)
+
+// ===================== Log =====================
+
+data class LogFile(
+    val id: String,
+    val name: String,
+    val path: String?,
+    val size: Long?,
+    val taskId: String?,
+    val taskName: String?,
+    val status: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+// ===================== Config =====================
+
+/**
+ * 配置文件列表项
+ * GET /api/configs/files 返回的 data 数组元素
+ * {title: "config.sh", value: "config.sh"}
+ */
+data class ConfigFileItem(
+    val title: String,
+    val value: String
+)
+
+data class LogDetail(
+    val id: String?,
+    val name: String?,
+    val path: String?,
+    val content: String?,
+    val lines: List<String>?,
+    val size: Long?,
+    val taskId: String?,
+    val taskName: String?,
+    val status: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+// ===================== Dependence =====================
+
+/**
+ * 依赖项
+ * GET /api/dependencies 返回的 data 数组元素
+ */
+data class Dependence(
+    val id: Int = 0,
+    val name: String = "",
+    val type: Int = 0,          // 0=nodejs, 1=python3, 2=linux
+    val status: Int = 6,        // 0=安装中, 1=已安装, 2=安装失败, 3=删除中, 4=已删除, 5=删除失败, 6=队列中, 7=已取消
+    val log: List<String>? = null,
+    val remark: String? = null,
+    val timestamp: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
+/**
+ * 依赖类型名称
+ */
+fun dependenceTypeName(type: Int): String = when (type) {
+    0 -> "Node.js"
+    1 -> "Python3"
+    2 -> "Linux"
+    else -> "未知"
+}
+
+/**
+ * 依赖状态名称
+ */
+fun dependenceStatusName(status: Int): String = when (status) {
+    0 -> "安装中"
+    1 -> "已安装"
+    2 -> "安装失败"
+    3 -> "删除中"
+    4 -> "已删除"
+    5 -> "删除失败"
+    6 -> "队列中"
+    7 -> "已取消"
+    else -> "未知"
+}
+
+/**
+ * 依赖状态颜色名称
+ */
+fun dependenceStatusColor(status: Int): String = when (status) {
+    0 -> "processing"    // 安装中 - 蓝色
+    1 -> "success"       // 已安装 - 绿色
+    2 -> "error"         // 安装失败 - 红色
+    3 -> "processing"    // 删除中 - 蓝色
+    4 -> "success"       // 已删除 - 绿色
+    5 -> "error"         // 删除失败 - 红色
+    6 -> "default"       // 队列中 - 灰色
+    7 -> "default"       // 已取消 - 灰色
+    else -> "default"
+}
+
+

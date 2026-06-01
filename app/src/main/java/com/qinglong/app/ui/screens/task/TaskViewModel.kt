@@ -8,6 +8,7 @@ import com.qinglong.app.data.model.Task
 import com.qinglong.app.data.model.ViewItem
 import com.qinglong.app.data.repository.Result
 import com.qinglong.app.data.repository.TaskRepository
+import com.qinglong.app.util.AppSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -39,6 +40,8 @@ data class TaskUiState(
     val logTask: Task? = null,
     val logContent: String = "",
     val isLoadingLog: Boolean = false,
+    val autoRefreshEnabled: Boolean = true,
+    val pageSize: Int = 10,
     val logFiles: List<CronLogFile> = emptyList(),      // 历史日志文件列表
     val isLoadingLogFiles: Boolean = false,              // 是否正在加载历史日志列表
     val selectedLogFile: CronLogFile? = null,            // 用户选中的历史日志文件
@@ -72,7 +75,8 @@ data class ViewTab(
 
 @HiltViewModel
 class TaskViewModel @Inject constructor(
-    private val taskRepository: TaskRepository
+    private val taskRepository: TaskRepository,
+    private val appSettings: AppSettings
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TaskUiState())
@@ -93,8 +97,16 @@ class TaskViewModel @Inject constructor(
     private var logPollingJob: Job? = null
 
     init {
-        loadViews()
-        loadSubscriptions()
+        viewModelScope.launch {
+            appSettings.taskPageSize.collect { size ->
+                _uiState.value = _uiState.value.copy(pageSize = size)
+            }
+        }
+        // 只在首次加载时拉数据，后续页面切换复用缓存
+        if (_uiState.value.tasks.isEmpty()) {
+            loadViews()
+            loadSubscriptions()
+        }
     }
 
     private fun loadSubscriptions() {
@@ -121,7 +133,14 @@ class TaskViewModel @Inject constructor(
                     val views = result.data
 
                     val tabs = if (views.isNotEmpty()) {
-                        views.sortedBy { it.position ?: Long.MAX_VALUE }.map { v ->
+                        // 从 API 返回的视图中提取"全部"标签（name="全部"或 type=1 且 filters 为空）
+                        val allView = views.find { v ->
+                            v.name == "全部" || (v.type == 1 && v.filters.isNullOrEmpty())
+                        }
+                        // 其他视图（排除"全部"）
+                        val otherViews = views.filter { v ->
+                            v.name != "全部" && !(v.type == 1 && v.filters.isNullOrEmpty())
+                        }.sortedBy { it.position ?: Long.MAX_VALUE }.map { v ->
                             ViewTab(
                                 id = v.id,
                                 name = v.name,
@@ -130,6 +149,16 @@ class TaskViewModel @Inject constructor(
                                 filterRelation = v.filterRelation
                             )
                         }
+                        // 构建最终列表："全部"永远在第一个位置
+                        listOfNotNull(
+                            if (allView != null) ViewTab(
+                                id = allView.id,
+                                name = allView.name,
+                                type = allView.type,
+                                filters = allView.filters,
+                                filterRelation = allView.filterRelation
+                            ) else ViewTab(0, "全部", 1, null, null)
+                        ) + otherViews
                     } else {
                         // fallback：如果 API 没有返回视图，用默认标签
                         listOf(
@@ -247,8 +276,12 @@ class TaskViewModel @Inject constructor(
                 viewFilterRelation = null
             )) {
                 is Result.Success -> {
+                    // 客户端二次过滤：只保留任务名称包含搜索词的结果
+                    val filtered = result.data.filter { task ->
+                        task.name.contains(query, ignoreCase = true)
+                    }
                     val cache = mutableMapOf<Int, String>()
-                    for (task in result.data) {
+                    for (task in filtered) {
                         val nextCal = com.qinglong.app.util.CronParser.getNextRunTime(task.schedule, task.lastRunTime)
                         cache[task.id] = if (nextCal != null) {
                             String.format(
@@ -412,10 +445,32 @@ class TaskViewModel @Inject constructor(
         }
     }
 
+    fun selectAllTasks() {
+        _uiState.update {
+            it.copy(selectedTaskIds = it.tasks.map { t -> t.id }.toSet())
+        }
+    }
+
+    fun invertTaskSelection() {
+        _uiState.update {
+            val allIds = it.tasks.map { t -> t.id }.toSet()
+            it.copy(selectedTaskIds = allIds - it.selectedTaskIds)
+        }
+    }
+
     fun runTask(id: Int) {
         viewModelScope.launch {
             when (taskRepository.runTasks(listOf(id))) {
-                is Result.Success -> loadTasks()
+                is Result.Success -> {
+                    // 只更新本地任务状态，不重新加载列表，避免列表顺序变化导致用户丢失当前位置
+                    _uiState.update { state ->
+                        state.copy(
+                            tasks = state.tasks.map { task ->
+                                if (task.id == id) task.copy(isDisabled = 0, status = 0) else task
+                            }
+                        )
+                    }
+                }
                 is Result.Error -> {}
             }
         }
@@ -424,7 +479,16 @@ class TaskViewModel @Inject constructor(
     fun stopTask(id: Int) {
         viewModelScope.launch {
             when (taskRepository.stopTasks(listOf(id))) {
-                is Result.Success -> loadTasks()
+                is Result.Success -> {
+                    // 只更新本地任务状态，不重新加载列表
+                    _uiState.update { state ->
+                        state.copy(
+                            tasks = state.tasks.map { task ->
+                                if (task.id == id) task.copy(status = 1) else task
+                            }
+                        )
+                    }
+                }
                 is Result.Error -> {}
             }
         }
@@ -613,6 +677,7 @@ class TaskViewModel @Inject constructor(
                 logTask = task,
                 logContent = "",
                 isLoadingLog = false,
+                autoRefreshEnabled = true,
                 logFiles = emptyList(),
                 isLoadingLogFiles = false,
                 selectedLogFile = null,
@@ -631,16 +696,46 @@ class TaskViewModel @Inject constructor(
     }
 
     /**
-     * 启动实时日志轮询（每 3 秒刷新一次）
+     * 切换自动刷新
+     */
+    fun toggleAutoRefresh() {
+        val currentLogTask = _uiState.value.logTask ?: return
+        val newState = !_uiState.value.autoRefreshEnabled
+        _uiState.update { it.copy(autoRefreshEnabled = newState) }
+        if (newState) {
+            startLogPolling(currentLogTask.id)
+        } else {
+            logPollingJob?.cancel()
+        }
+    }
+
+    /**
+     * 手动刷新日志
+     */
+    fun manualRefreshLog() {
+        val currentLogTask = _uiState.value.logTask ?: return
+        loadLatestLog(currentLogTask.id)
+    }
+
+    /**
+     * 启动实时日志轮询
      */
     private fun startLogPolling(taskId: Int) {
         logPollingJob?.cancel()
         logPollingJob = viewModelScope.launch {
+            // 首次读取刷新间隔
+            var intervalMs = appSettings.taskLogRefreshMsState.value.toLong()
+            // 监听刷新间隔变化
+            launch {
+                appSettings.taskLogRefreshMsState.collect { ms ->
+                    intervalMs = ms.toLong()
+                }
+            }
             while (true) {
-                delay(3000) // 3 秒间隔
+                delay(intervalMs)
                 when (val result = taskRepository.getCronLog(taskId)) {
                     is Result.Success -> {
-                        _uiState.update { it.copy(logContent = result.data ?: "") }
+                        _uiState.update { it.copy(logContent = result.data) }
                     }
                     is Result.Error -> {
                     }
@@ -680,9 +775,9 @@ class TaskViewModel @Inject constructor(
     fun selectLogFile(file: CronLogFile) {
         _uiState.update { it.copy(selectedLogFile = file, isShowingLogDetail = true, isLoadingLog = true, logContent = "") }
         // 加载该历史日志文件的内容
+        // 官方: GET /api/logs/detail?file=xxx&path=xxx
         viewModelScope.launch {
-            val task = _uiState.value.logTask ?: return@launch
-            when (val result = taskRepository.getCronLog(task.id)) {
+            when (val result = taskRepository.getLogDetail(file.filename, file.directory)) {
                 is Result.Success -> {
                     _uiState.update { it.copy(logContent = result.data, isLoadingLog = false) }
                 }
