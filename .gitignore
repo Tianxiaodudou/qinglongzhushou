@@ -45,6 +45,9 @@ captures/
 #macOS
 .DS_Store
 
+# Local build backup snapshots
+build_backups/
+
 #.env files (do NOT commit real tokens/keys)
 .env
 .env.*

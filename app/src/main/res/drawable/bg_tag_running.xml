@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <!-- 运行中状态标签背景 - 绿色 -->
+    <path
+        android:fillColor="#43A047"
+        android:fillAlpha="0.15"
+        android:pathData="M2,0L18,0C19.1,0 20,0.9 20,2L20,18C20,19.1 19.1,20 18,20L2,20C0.9,20 0,19.1 0,18L0,2C0,0.9 0.9,0 2,0Z" />
+</vector>

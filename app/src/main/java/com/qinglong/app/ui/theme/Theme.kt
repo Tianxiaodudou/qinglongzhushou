@@ -7,9 +7,28 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+
+enum class ThemeMode {
+    LIGHT, DARK, SYSTEM
+}
+
+private val AmoledDarkColorScheme = darkColorScheme(
+    primary = QingLongGreen,
+    onPrimary = LightOnPrimary,
+    primaryContainer = QingLongGreenDark,
+    secondary = QingLongGreen,
+    background = Color.Black,
+    surface = Color(0xFF0A0A0A),
+    surfaceVariant = Color(0xFF1A1A1A),
+    onSurface = QingLongOnSurface,
+    onSurfaceVariant = QingLongOnSurfaceVariant,
+    error = StatusFailed,
+    onError = LightOnPrimary
+)
 
 private val DarkColorScheme = darkColorScheme(
     primary = QingLongGreen,
@@ -42,9 +61,15 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun QingLongTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    @Suppress("UNUSED_PARAMETER") dynamicColor: Boolean = false,
+    amoledMode: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when {
+        amoledMode && darkTheme -> AmoledDarkColorScheme
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
