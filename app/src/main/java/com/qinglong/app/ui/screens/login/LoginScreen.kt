@@ -410,9 +410,12 @@ fun LoginScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text(server.domain, fontWeight = FontWeight.Medium)
                                                 Text(
-                                                    "${server.protocol}://${server.domain}:${server.port} · ${server.username}",
+                                                    if (server.name.isNotBlank() && server.name != server.domain) server.name else server.domain,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    if (server.name.isNotBlank() && server.name != server.domain) server.domain else "${server.protocol}://${server.domain}:${server.port} · ${server.username}",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -553,7 +556,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(40.dp))
 
             Text(
-                text = "青龙助手 v1.4.6  ·  Android 8.0+",
+                text = "青龙助手 v1.5.1  ·  Android 8.0+",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )

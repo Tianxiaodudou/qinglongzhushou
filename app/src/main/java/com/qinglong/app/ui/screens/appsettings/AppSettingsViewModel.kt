@@ -24,7 +24,7 @@ data class AppSettingsUiState(
     val subLogRefreshMs: Int = 3000,
     val scriptRunRefreshMs: Int = 3000,
     // 关于
-    val appVersion: String = "1.4.6",
+    val appVersion: String = "1.5.1",
     val qinglongVersion: String = "",
     val serverAddress: String = "",
     // 服务器管理
@@ -206,15 +206,6 @@ class AppSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.deleteServer(server.id)
             refreshServers()
-        }
-    }
-
-    fun switchServer(server: ServerConfig) {
-        viewModelScope.launch {
-            authRepository.saveServer(server, authRepository.getPassword(server.id) ?: "")
-            refreshServers()
-            // 重新加载版本号
-            loadExtraInfo()
         }
     }
 

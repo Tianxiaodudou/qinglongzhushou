@@ -306,8 +306,8 @@ fun QingLongNavHost() {
                     showDonateDialog = true
                 },
                 onSwitchServer = {
-                    // 弹出服务器列表弹窗
-                    savedServers = authViewModel.getServerConfig()?.let { listOf(it) } ?: emptyList()
+                    // 弹出服务器列表弹窗（加载全部已保存的服务器）
+                    savedServers = authViewModel.getServers()
                     showServerList = true
                 },
                 username = username,
