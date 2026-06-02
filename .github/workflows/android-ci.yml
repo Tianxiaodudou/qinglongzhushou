@@ -3,22 +3,47 @@ name: Android CI
 on:
   push:
     branches: [ main, develop, dev-v1, qianwen ]
-  pull_request:
-    branches: [ main, develop, dev-v1 ]
   workflow_dispatch:
 
 env:
   APP_NAME: QingLong
-  APP_VERSION: 1.1.0
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      APP_NAME: QingLong
-      APP_VERSION: 1.1.0
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version from source code
+        id: version
+        run: |
+          # 从源码读取版本号（如 1.4.4）
+          BASE_VER=$(grep 'versionName' app/build.gradle.kts | grep -oP '"\K[^"]+' | head -1)
+          MAJOR=$(echo "$BASE_VER" | cut -d. -f1)
+          MINOR=$(echo "$BASE_VER" | cut -d. -f2)
+          PATCH=$(echo "$BASE_VER" | cut -d. -f3)
+
+          # 检查 tag 是否已被占用，若占用则递增版本号
+          # 补丁位 0~10，满 10 进一（1.4.10 → 1.5.0）
+          TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          while git ls-remote --tags origin "${TAG}" 2>/dev/null | grep -q "${TAG}$"; do
+            PATCH=$((PATCH + 1))
+            if [ $PATCH -gt 10 ]; then
+              PATCH=0
+              MINOR=$((MINOR + 1))
+            fi
+            TAG="v${MAJOR}.${MINOR}.${PATCH}"
+            echo "⚠️ tag 已被占用，尝试: ${TAG}"
+          done
+
+          echo "version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "📦 版本: ${MAJOR}.${MINOR}.${PATCH} | tag: ${TAG}"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -33,99 +58,86 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew assembleDebug --stacktrace --no-daemon --no-build-cache
 
-      - name: Rename APK with build info
+      - name: Rename APK
         run: |
-          BUILD_DATE=$(date +'%Y%m%d-%H%M')
-          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/${APP_NAME}-v${APP_VERSION}-${BUILD_DATE}.apk"
+          mv app/build/outputs/apk/debug/app-debug.apk \
+             "app/build/outputs/apk/debug/${APP_NAME}-v${{ steps.version.outputs.version }}.apk"
 
-      - name: Upload build artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-release
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Package source code
+        run: |
+          git archive --format=zip \
+            --output=source-v${{ steps.version.outputs.version }}.zip \
+            --prefix=qinglong-assistant-v${{ steps.version.outputs.version }}/ \
+            HEAD
+
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-code
+          path: source-*.zip
+
+      - name: Generate changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          cat > release_body.md << EOF
+          ## 青龙助手 v${{ steps.version.outputs.version }}
+
+          ### 变更内容
+          EOF
+
+          if [ -n "$LAST_TAG" ]; then
+            git log "${LAST_TAG}..HEAD" --oneline --no-decorate | while read line; do
+              echo "- ${line}" >> release_body.md
+            done
+          else
+            echo "- 初始版本" >> release_body.md
+          fi
+
+          echo "" >> release_body.md
+          echo "---" >> release_body.md
+          echo "提交: $(git rev-parse --short HEAD)" >> release_body.md
+
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-body
+          path: release_body.md
 
   release:
     needs: build
-    if: github.ref == 'refs/heads/qianwen' || github.ref == 'refs/heads/dev-v1' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/qianwen'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      APP_NAME: QingLong
-      APP_VERSION: 1.1.0
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: app-debug
+          path: artifacts
 
-      - name: Locate APK file
+      - name: Prepare release files
         run: |
-          find . -name "*.apk" -type f -exec mv {} . \;
-          ls -la *.apk
-
-      - name: Prepare release info
-        id: release
-        run: |
-          APK_FILE=$(ls *.apk 2>/dev/null | head -1)
-          if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -name "*.apk" -type f | head -1)
-          fi
-          echo "找到APK: $APK_FILE"
-          BUILD_DATE=$(echo "$APK_FILE" | grep -oP '\d{8}-\d{4}')
-          TAG="v${APP_VERSION}-${BUILD_DATE}"
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "name=${APP_NAME} v${APP_VERSION}" >> $GITHUB_OUTPUT
-          echo "apk_file=${APK_FILE}" >> $GITHUB_OUTPUT
-
-      - name: Generate release body
-        id: body
-        run: |
-          cat > /tmp/release_body.md << 'RELEOF'
-          ## 青龙助手 v1.1.0
-
-          ### 功能概览
-          - **定时任务**：视图标签、搜索、分页、批量操作、实时日志弹窗（刷新+自动刷新开关）
-          - **订阅管理**：搜索、分页、批量操作
-          - **环境变量**：搜索、分页、批量操作
-          - **脚本管理**：浏览、编辑、运行
-          - **依赖管理**：安装、更新、删除
-          - **配置文件**：编辑系统配置文件
-
-          ### 系统设置
-          - 安全与认证（密码修改、2FA）
-          - 开放平台（应用管理、通知设置）
-          - 系统日志（日期范围查询、清空）
-          - 登录日志（历史记录查看）
-          - 依赖设置（镜像源、代理）
-          - 其他设置（日志保留、并发数、时区、SSH Key）
-
-          ### 应用设置
-          - 外观（深色/浅色/跟随系统）
-          - 字体大小（小/默认/大/超大）
-          - 服务器管理（添加/编辑/删除/切换）
-          - 每页卡片数（定时任务/订阅/环境变量 独立设置）
-          - 日志刷新间隔
-          - 关于（版本号、服务器地址、青龙面板版本）
-
-          ### 捐赠支持
-          导航抽屉底部点击 ❤️ 捐赠，支持微信和支付宝扫码。
-          保存图片按钮可将收款码存到手机相册。
-
-          ### 技术特性
-          - 零警告编译
-          - Android 14+ 适配
-          - Material 3 设计
-          RELEOF
+          cp artifacts/app-release/*.apk .
+          cp artifacts/source-code/source-*.zip .
+          cp artifacts/release-body/release_body.md .
+          ls -la
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release.outputs.tag }}
-          name: ${{ steps.release.outputs.name }}
-          body_path: /tmp/release_body.md
-          files: ${{ steps.release.outputs.apk_file }}
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: v${{ needs.build.outputs.version }}
+          body_path: release_body.md
+          files: |
+            *.apk
+            *.zip
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false

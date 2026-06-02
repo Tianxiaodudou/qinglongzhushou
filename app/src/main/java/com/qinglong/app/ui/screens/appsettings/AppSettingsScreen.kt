@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -436,6 +437,7 @@ private fun AboutSection(
     qinglongVersion: String,
     serverAddress: String
 ) {
+    val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("关于", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
@@ -453,7 +455,7 @@ private fun AboutSection(
             AboutItem(
                 Icons.Default.Code,
                 "开源许可",
-                "Apache License 2.0",
+                "GNU GPL-3.0",
                 onClick = {}
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -462,7 +464,11 @@ private fun AboutSection(
                 "反馈问题",
                 "GitHub Issues",
                 onClick = {
-                    // 可以打开浏览器
+                    val intent = android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://github.com/Tianxiaodudou/qinglongzhushou")
+                    )
+                    context.startActivity(intent)
                 }
             )
         }
