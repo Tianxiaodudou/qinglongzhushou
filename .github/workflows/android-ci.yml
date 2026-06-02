@@ -3,8 +3,6 @@ name: Android CI
 on:
   push:
     branches: [ main, develop, dev-v1, qianwen ]
-  pull_request:
-    branches: [ main, develop, dev-v1 ]
   workflow_dispatch:
 
 env:
@@ -13,16 +11,26 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      app_version: ${{ steps.version.outputs.app_version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Read version from build.gradle.kts
+      - name: Determine version
         id: version
         run: |
-          APP_VERSION=$(grep 'versionName' app/build.gradle.kts | grep -oP '"\K[^"]+' | head -1)
-          echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
-          echo "version=${APP_VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 版本: v${APP_VERSION}"
+          BASE_VER=$(grep 'versionName' app/build.gradle.kts | grep -oP '"\K[^"]+' | head -1)
+          RUN_NUM=${{ github.run_number }}
+          # tag = 基准版本.构建号，保证唯一不覆盖
+          TAG="v${BASE_VER}.${RUN_NUM}"
+          echo "version=${BASE_VER}.${RUN_NUM}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "app_version=${BASE_VER}" >> $GITHUB_OUTPUT
+          echo "📦 版本: ${BASE_VER} | 标签: ${TAG} | 构建: ${RUN_NUM}"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -39,13 +47,58 @@ jobs:
 
       - name: Rename APK
         run: |
-          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/${APP_NAME}-v${APP_VERSION}.apk"
+          mv app/build/outputs/apk/debug/app-debug.apk \
+             "app/build/outputs/apk/debug/${APP_NAME}-v${{ steps.version.outputs.version }}.apk"
 
-      - name: Upload build artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-release
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Package source code
+        run: |
+          # 创建源代码归档（排除编译产物）
+          git archive --format=zip \
+            --output=source-v${{ steps.version.outputs.version }}.zip \
+            --prefix=qinglong-assistant-${{ steps.version.outputs.version }}/ \
+            HEAD
+
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-code
+          path: source-*.zip
+
+      - name: Generate changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          cat > release_body.md << EOF
+          ## 青龙助手 v${{ steps.version.outputs.app_version }}
+          **构建**: ${{ steps.version.outputs.version }} | **推送**: $(git log -1 --format=%s HEAD)
+
+          ### 变更内容
+          EOF
+
+          if [ -n "$LAST_TAG" ]; then
+            git log "${LAST_TAG}..HEAD" --oneline --no-decorate | while read line; do
+              echo "- ${line}" >> release_body.md
+            done
+          else
+            echo "- 初始版本" >> release_body.md
+          fi
+
+          echo "" >> release_body.md
+          echo "---" >> release_body.md
+          echo "构建号: ${{ github.run_number }}" >> release_body.md
+          echo "提交: $(git rev-parse --short HEAD)" >> release_body.md
+
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-body
+          path: release_body.md
 
   release:
     needs: build
@@ -54,74 +107,30 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Read version from build.gradle.kts
-        id: version
-        run: |
-          APP_VERSION=$(grep 'versionName' app/build.gradle.kts | grep -oP '"\K[^"]+' | head -1)
-          echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
-          echo "version=${APP_VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 版本: v${APP_VERSION}"
-
-      - name: Download artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: app-debug
+          path: artifacts
 
-      - name: Locate APK file
+      - name: Prepare release files
         run: |
-          find . -name "*.apk" -type f -exec mv {} . \;
-          ls -la *.apk
+          ls -la artifacts/
+          find artifacts/ -type f
+          # 将所有文件挪到工作目录
+          cp artifacts/app-release/*.apk .
+          cp artifacts/source-code/source-*.zip .
+          cp artifacts/release-body/release_body.md .
+          ls -la
 
-      - name: Generate release notes
-        id: notes
-        run: |
-          cat > release_body.md << RELEOF
-          ## 青龙助手 v${APP_VERSION}
-
-          ## 变更内容
-          - 取消编译唯一码规则，使用语义化版本号
-          - 开启版本号自动递增机制（versionCode = major*10000 + minor*100 + patch）
-          - 编译脚本自动从 build.gradle.kts 读取版本号
-
-          ### 功能概览
-          - **定时任务**：视图标签、搜索、分页、批量操作、实时日志弹窗（刷新+自动刷新开关）
-          - **订阅管理**：搜索、分页、批量操作
-          - **环境变量**：搜索、分页、批量操作
-          - **脚本管理**：浏览、编辑、运行
-          - **依赖管理**：安装、更新、删除
-          - **配置文件**：编辑系统配置文件
-          - **应用管理**：查看与管理开放平台应用
-          - **通知设置**：管理通知渠道
-
-          ### 系统设置
-          - 安全与认证（密码修改、2FA）
-          - 开放平台（应用管理、通知设置）
-          - 系统日志（日期范围查询、清空）
-          - 登录日志（历史记录查看）
-          - 依赖设置（镜像源、代理）
-          - 其他设置（日志保留、并发数、时区、SSH Key）
-
-          ### 应用设置
-          - 外观（深色/浅色/跟随系统）
-          - 字体大小（小/默认/大/超大）
-          - 服务器管理（添加/编辑/删除/切换）
-          - 每页卡片数（定时任务/订阅/环境变量 独立设置）
-          - 日志刷新间隔（三组独立）
-          - 关于（版本号、服务器地址、青龙面板版本）
-
-          ### 捐赠支持
-          导航抽屉底部点击 ❤️ 捐赠，支持微信和支付宝扫码。
-          RELEOF
-
-      - name: Create or Update Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.APP_VERSION }}
-          name: v${{ env.APP_VERSION }}
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: v${{ needs.build.outputs.app_version }} 构建${{ github.run_number }}
           body_path: release_body.md
-          files: '*.apk'
+          files: |
+            *.apk
+            *.zip
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
