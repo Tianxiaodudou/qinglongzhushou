@@ -31,12 +31,17 @@ fi
 
 echo "📦 当前版本: v${APP_VERSION}"
 
-# 递增补丁号
+# 递增版本号：补丁位 0~10，满 10 进一（1.4.10 → 1.5.0）
 MAJOR=$(echo "$APP_VERSION" | cut -d. -f1)
 MINOR=$(echo "$APP_VERSION" | cut -d. -f2)
 PATCH=$(echo "$APP_VERSION" | cut -d. -f3)
 NEW_PATCH=$((PATCH + 1))
-NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+NEW_MINOR=$MINOR
+if [ $NEW_PATCH -gt 10 ]; then
+  NEW_PATCH=0
+  NEW_MINOR=$((MINOR + 1))
+fi
+NEW_VERSION="${MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
 
 echo "🔄 递增版本: v${APP_VERSION} → v${NEW_VERSION}"
 

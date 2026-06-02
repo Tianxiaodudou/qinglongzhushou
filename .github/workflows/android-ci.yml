@@ -28,10 +28,15 @@ jobs:
           MINOR=$(echo "$BASE_VER" | cut -d. -f2)
           PATCH=$(echo "$BASE_VER" | cut -d. -f3)
 
-          # 检查 tag 是否已被占用，若占用则递增补丁号
+          # 检查 tag 是否已被占用，若占用则递增版本号
+          # 补丁位 0~10，满 10 进一（1.4.10 → 1.5.0）
           TAG="v${MAJOR}.${MINOR}.${PATCH}"
           while git ls-remote --tags origin "${TAG}" 2>/dev/null | grep -q "${TAG}$"; do
             PATCH=$((PATCH + 1))
+            if [ $PATCH -gt 10 ]; then
+              PATCH=0
+              MINOR=$((MINOR + 1))
+            fi
             TAG="v${MAJOR}.${MINOR}.${PATCH}"
             echo "⚠️ tag 已被占用，尝试: ${TAG}"
           done
