@@ -14,23 +14,31 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
-      app_version: ${{ steps.version.outputs.app_version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Determine version
+      - name: Determine version from source code
         id: version
         run: |
+          # 从源码读取版本号（如 1.4.4）
           BASE_VER=$(grep 'versionName' app/build.gradle.kts | grep -oP '"\K[^"]+' | head -1)
-          RUN_NUM=${{ github.run_number }}
-          # tag = 基准版本.构建号，保证唯一不覆盖
-          TAG="v${BASE_VER}.${RUN_NUM}"
-          echo "version=${BASE_VER}.${RUN_NUM}" >> $GITHUB_OUTPUT
+          MAJOR=$(echo "$BASE_VER" | cut -d. -f1)
+          MINOR=$(echo "$BASE_VER" | cut -d. -f2)
+          PATCH=$(echo "$BASE_VER" | cut -d. -f3)
+
+          # 检查 tag 是否已被占用，若占用则递增补丁号
+          TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          while git ls-remote --tags origin "${TAG}" 2>/dev/null | grep -q "${TAG}$"; do
+            PATCH=$((PATCH + 1))
+            TAG="v${MAJOR}.${MINOR}.${PATCH}"
+            echo "⚠️ tag 已被占用，尝试: ${TAG}"
+          done
+
+          echo "version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "app_version=${BASE_VER}" >> $GITHUB_OUTPUT
-          echo "📦 版本: ${BASE_VER} | 标签: ${TAG} | 构建: ${RUN_NUM}"
+          echo "📦 版本: ${MAJOR}.${MINOR}.${PATCH} | tag: ${TAG}"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -58,10 +66,9 @@ jobs:
 
       - name: Package source code
         run: |
-          # 创建源代码归档（排除编译产物）
           git archive --format=zip \
             --output=source-v${{ steps.version.outputs.version }}.zip \
-            --prefix=qinglong-assistant-${{ steps.version.outputs.version }}/ \
+            --prefix=qinglong-assistant-v${{ steps.version.outputs.version }}/ \
             HEAD
 
       - name: Upload source artifact
@@ -75,8 +82,7 @@ jobs:
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
           cat > release_body.md << EOF
-          ## 青龙助手 v${{ steps.version.outputs.app_version }}
-          **构建**: ${{ steps.version.outputs.version }} | **推送**: $(git log -1 --format=%s HEAD)
+          ## 青龙助手 v${{ steps.version.outputs.version }}
 
           ### 变更内容
           EOF
@@ -91,7 +97,6 @@ jobs:
 
           echo "" >> release_body.md
           echo "---" >> release_body.md
-          echo "构建号: ${{ github.run_number }}" >> release_body.md
           echo "提交: $(git rev-parse --short HEAD)" >> release_body.md
 
       - name: Upload changelog artifact
@@ -114,9 +119,6 @@ jobs:
 
       - name: Prepare release files
         run: |
-          ls -la artifacts/
-          find artifacts/ -type f
-          # 将所有文件挪到工作目录
           cp artifacts/app-release/*.apk .
           cp artifacts/source-code/source-*.zip .
           cp artifacts/release-body/release_body.md .
@@ -126,7 +128,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.tag }}
-          name: v${{ needs.build.outputs.app_version }} 构建${{ github.run_number }}
+          name: v${{ needs.build.outputs.version }}
           body_path: release_body.md
           files: |
             *.apk
