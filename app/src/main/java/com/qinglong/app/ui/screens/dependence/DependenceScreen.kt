@@ -219,6 +219,7 @@ fun DependenceScreen(
                         SelectionContainer {
                             Text(
                                 text = uiState.logContent,
+                                modifier = Modifier.verticalScroll(rememberScrollState()),
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurface
