@@ -182,7 +182,7 @@ fun SplashScreen(
         ) {
             // Logo 图标（使用 Image 避免 Material Icon 的背景框）
             Image(
-                painter = painterResource(id = com.qinglong.app.R.drawable.ic_launcher_foreground),
+                painter = painterResource(id = com.qinglong.app.R.drawable.ic_splash_logo),
                 contentDescription = "Logo",
                 modifier = Modifier
                     .size(320.dp)
