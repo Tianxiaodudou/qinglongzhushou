@@ -65,11 +65,9 @@ fun AppSettingsScreen(
             // ===== 服务器管理 =====
             ServerManagementSection(
                 servers = uiState.servers,
-                currentServerId = uiState.currentServerId,
                 onAddServer = { viewModel.showAddServer() },
                 onEditServer = { viewModel.showEditServer(it) },
-                onDeleteServer = { showDeleteServerConfirm = it },
-                onSwitchServer = { viewModel.switchServer(it) }
+                onDeleteServer = { showDeleteServerConfirm = it }
             )
 
             // ===== 分页设置 =====
@@ -296,11 +294,9 @@ private fun LogRefreshSection(
 @Composable
 private fun ServerManagementSection(
     servers: List<ServerConfig>,
-    currentServerId: String,
     onAddServer: () -> Unit,
     onEditServer: (ServerConfig) -> Unit,
-    onDeleteServer: (ServerConfig) -> Unit,
-    onSwitchServer: (ServerConfig) -> Unit
+    onDeleteServer: (ServerConfig) -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -328,10 +324,8 @@ private fun ServerManagementSection(
                 servers.forEachIndexed { index, server ->
                     ServerItem(
                         server = server,
-                        isCurrent = server.id == currentServerId,
                         onEdit = { onEditServer(server) },
-                        onDelete = { onDeleteServer(server) },
-                        onSwitch = { onSwitchServer(server) }
+                        onDelete = { onDeleteServer(server) }
                     )
                     if (index < servers.lastIndex) {
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -345,14 +339,11 @@ private fun ServerManagementSection(
 @Composable
 private fun ServerItem(
     server: ServerConfig,
-    isCurrent: Boolean,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onSwitch: () -> Unit
+    onDelete: () -> Unit
 ) {
-    val itemModifier = if (isCurrent) Modifier else Modifier.clickable { onSwitch() }
     Surface(
-        modifier = itemModifier,
+        modifier = Modifier,
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
@@ -365,7 +356,7 @@ private fun ServerItem(
                 Icons.Default.Dns,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -373,23 +364,8 @@ private fun ServerItem(
                     Text(
                         text = server.name.ifBlank { server.domain },
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = FontWeight.Normal
                     )
-                    if (isCurrent) {
-                        Spacer(Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                "当前",
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
                 }
                 Text(
                     text = "${server.protocol}://${server.domain}:${server.port}",

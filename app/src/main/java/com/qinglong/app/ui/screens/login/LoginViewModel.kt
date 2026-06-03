@@ -340,6 +340,8 @@ class LoginViewModel @Inject constructor(
      */
     fun getServerConfig(): ServerConfig? = authRepository.loadServerConfig()
 
+    fun getServers(): List<ServerConfig> = authRepository.getServers()
+
     /**
      * 获取青龙面板版本号（供 Drawer 显示用）
      * 使用 api/system 端点（不需要 Token 认证）

@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -25,6 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import com.qinglong.app.R
+import com.qinglong.app.data.api.ApiManager
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -54,16 +61,46 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ApiManagerEntryPoint {
+    fun getApiManager(): ApiManager
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QingLongNavHost() {
     val navController = rememberNavController()
     val authViewModel: LoginViewModel = hiltViewModel()
+    val context = LocalContext.current
+    // 通过 Hilt EntryPoint 获取 ApiManager 单例
+    val apiManager = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            ApiManagerEntryPoint::class.java
+        ).getApiManager()
+    }
     val currentRoute = navController.currentBackStackEntryFlow.collectAsState(initial = null).value?.destination?.route ?: ""
 
     // Drawer 状态
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    // ===== 注册 401 认证失败回调（只注册一次） =====
+    // Token 过期时，清除认证状态并跳转登录页
+    // 注意：AuthInterceptor 在 OkHttp 线程回调，需要用 Handler 切回主线程
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    LaunchedEffect(Unit) {
+        apiManager.onUnauthorized = {
+            mainHandler.post {
+                authViewModel.logout()
+                apiManager.clearApi()
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
+        }
+    }
 
     fun toggleDrawer() {
         scope.launch {
@@ -297,6 +334,7 @@ fun QingLongNavHost() {
                     scope.launch { drawerState.close() }
                 },
                 onLogout = {
+                    scope.launch { drawerState.close() }
                     authViewModel.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
@@ -306,8 +344,8 @@ fun QingLongNavHost() {
                     showDonateDialog = true
                 },
                 onSwitchServer = {
-                    // 弹出服务器列表弹窗
-                    savedServers = authViewModel.getServerConfig()?.let { listOf(it) } ?: emptyList()
+                    // 弹出服务器列表弹窗（加载全部已保存的服务器）
+                    savedServers = authViewModel.getServers()
                     showServerList = true
                 },
                 username = username,

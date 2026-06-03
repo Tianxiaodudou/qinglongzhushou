@@ -2,10 +2,10 @@ package com.qinglong.app.ui.screens.splash
 
 import android.widget.Toast
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -180,15 +180,13 @@ fun SplashScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Logo 图标
-            Icon(
-                painter = painterResource(id = com.qinglong.app.R.drawable.ic_launcher_foreground),
+            // Logo 图标（使用 Image 避免 Material Icon 的背景框）
+            Image(
+                painter = painterResource(id = com.qinglong.app.R.drawable.ic_splash_logo),
                 contentDescription = "Logo",
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(320.dp)
                     .alpha(alpha)
-                    .clip(RoundedCornerShape(16.dp)),
-                tint = Color.Unspecified
             )
 
             Spacer(modifier = Modifier.height(24.dp))

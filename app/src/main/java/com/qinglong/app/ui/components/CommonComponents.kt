@@ -102,7 +102,8 @@ fun QingLongDrawer(
         NavItem("script", "脚本管理", Icons.Default.Description),
         NavItem("config", "配置文件", Icons.Default.Settings),
         NavItem("panel_settings", "系统设置", Icons.Default.AdminPanelSettings),
-        NavItem("app_settings", "应用设置", Icons.Default.PhoneAndroid)
+        NavItem("app_settings", "应用设置", Icons.Default.PhoneAndroid),
+        NavItem("donate", "捐赠支持", Icons.Default.Favorite)
     )
 
     ModalDrawerSheet(modifier = modifier.width(300.dp)) {
@@ -171,28 +172,30 @@ fun QingLongDrawer(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Navigation Items
+        val roseColor = Color(0xFFE91E63)
         navItems.forEach { item ->
+            val isDonate = item.route == "donate"
             val isSelected = currentRoute == item.route
             NavigationDrawerItem(
                 icon = {
                     Icon(
                         imageVector = item.icon,
                         contentDescription = null,
-                        tint = if (isSelected) QingLongGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (isDonate) roseColor else if (isSelected) QingLongGreen else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
                 label = {
                     Text(
                         text = item.title,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isSelected) QingLongGreen else MaterialTheme.colorScheme.onSurface
+                        color = if (isDonate) roseColor else if (isSelected) QingLongGreen else MaterialTheme.colorScheme.onSurface
                     )
                 },
                 selected = isSelected,
-                onClick = { onNavigate(item.route) },
+                onClick = { if (isDonate) onDonate() else onNavigate(item.route) },
                 modifier = Modifier.padding(horizontal = 12.dp),
                 colors = NavigationDrawerItemDefaults.colors(
-                    selectedContainerColor = QingLongGreen.copy(alpha = 0.08f),
+                    selectedContainerColor = if (isDonate) roseColor.copy(alpha = 0.1f) else QingLongGreen.copy(alpha = 0.08f),
                     unselectedContainerColor = Color.Transparent
                 )
             )
@@ -223,7 +226,7 @@ fun QingLongDrawer(
             )
         )
 
-        // Logout + Donate
+        // Logout
         HorizontalDivider(
             modifier = Modifier
                 .fillMaxWidth()
@@ -231,53 +234,27 @@ fun QingLongDrawer(
             thickness = 0.5.dp,
             color = MaterialTheme.colorScheme.outlineVariant
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            NavigationDrawerItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Logout,
-                        contentDescription = null,
-                        tint = StatusFailed
-                    )
-                },
-                label = {
-                    Text(
-                        text = "退出登录",
-                        color = StatusFailed
-                    )
-                },
-                selected = false,
-                onClick = onLogout,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(0.dp)
+        NavigationDrawerItem(
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Logout,
+                    contentDescription = null,
+                    tint = StatusFailed
+                )
+            },
+            label = {
+                Text(
+                    text = "退出登录",
+                    color = StatusFailed
+                )
+            },
+            selected = false,
+            onClick = onLogout,
+            modifier = Modifier.padding(horizontal = 12.dp),
+            colors = NavigationDrawerItemDefaults.colors(
+                unselectedContainerColor = Color.Transparent
             )
-            NavigationDrawerItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = null,
-                        tint = Color(0xFFFF6B35)
-                    )
-                },
-                label = {
-                    Text(
-                        text = "捐赠",
-                        color = Color(0xFFFF6B35)
-                    )
-                },
-                selected = false,
-                onClick = onDonate,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(0.dp)
-            )
-        }
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -638,9 +615,12 @@ fun ServerListDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(server.domain, fontWeight = FontWeight.Medium)
                                     Text(
-                                        "${server.protocol}://${server.domain}:${server.port} · ${server.username}",
+                                        if (server.name.isNotBlank() && server.name != server.domain) server.name else server.domain,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        if (server.name.isNotBlank() && server.name != server.domain) server.domain else "${server.protocol}://${server.domain}:${server.port} · ${server.username}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -903,15 +883,16 @@ fun TaskLogListDialog(
  */
 @Composable
 fun TaskLogDetailDialog(
-    task: Task,
+    title: String,
     logContent: String,
     isLoading: Boolean,
-    title: String? = null,
+    isRunning: Boolean = false,
     autoRefreshEnabled: Boolean = true,
     onRefresh: (() -> Unit)? = null,
     onToggleAutoRefresh: ((Boolean) -> Unit)? = null,
     onDismiss: () -> Unit,
-    onBack: (() -> Unit)? = null
+    onBack: (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -927,26 +908,30 @@ fun TaskLogDetailDialog(
                     }
                 }
                 Text(
-                    text = title ?: (if (task.isRunning) "实时日志: ${task.name}" else "日志: ${task.name}"),
+                    text = title,
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (task.isRunning) {
-                    // 手动刷新按钮
-                    IconButton(onClick = { onRefresh?.invoke() }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新", modifier = Modifier.size(20.dp))
+                if (isRunning) {
+                    if (onRefresh != null) {
+                        IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Refresh, contentDescription = "刷新", modifier = Modifier.size(20.dp))
+                        }
                     }
-                    // 自动刷新开关
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(
-                            checked = autoRefreshEnabled,
-                            onCheckedChange = { onToggleAutoRefresh?.invoke(it) },
-                            modifier = Modifier.height(24.dp)
-                        )
+                    if (onToggleAutoRefresh != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(
+                                checked = autoRefreshEnabled,
+                                onCheckedChange = { onToggleAutoRefresh(it) },
+                                modifier = Modifier.height(24.dp)
+                            )
+                        }
                     }
                 }
+                // 自定义尾部内容（如脚本编辑器的停止运行按钮）
+                trailingContent?.invoke()
             }
         },
         text = {

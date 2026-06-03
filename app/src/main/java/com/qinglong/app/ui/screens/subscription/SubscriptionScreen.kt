@@ -210,18 +210,18 @@ fun SubscriptionScreen(
         if (sub.isRunning) {
             // 运行中 → 实时日志
             TaskLogDetailDialog(
-                task = sub.toTaskLike(),
+                title = "实时日志: ${sub.name}",
                 logContent = uiState.logContent,
                 isLoading = uiState.isLoadingLog,
+                isRunning = true,
                 onDismiss = { viewModel.hideLogDialog() }
             )
         } else if (uiState.isShowingLogDetail && uiState.selectedLogFile != null) {
             // 查看某条历史日志详情
             TaskLogDetailDialog(
-                task = sub.toTaskLike(),
+                title = uiState.selectedLogFile!!.filename,
                 logContent = uiState.logContent,
                 isLoading = uiState.isLoadingLog,
-                title = uiState.selectedLogFile!!.filename,
                 onDismiss = { viewModel.hideLogDialog() },
                 onBack = { viewModel.backToLogFileList() }
             )

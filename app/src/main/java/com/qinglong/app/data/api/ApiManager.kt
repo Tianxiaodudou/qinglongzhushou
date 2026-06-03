@@ -27,10 +27,21 @@ class ApiManager @Inject constructor(
     @Volatile
     private var currentApi: QingLongApi? = null
 
+    /** 401 认证失败回调 - 由 NavHost 注册，收到回调时退出登录并跳转登录页 */
+    @Volatile
+    var onUnauthorized: (() -> Unit)? = null
+
     /**
      * 获取当前 API 实例
      */
     fun getApi(): QingLongApi? = currentApi
+
+    /**
+     * 清除当前 API 实例
+     */
+    fun clearApi() {
+        currentApi = null
+    }
 
     /**
      * 创建并设置 API 实例

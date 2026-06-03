@@ -6,6 +6,8 @@ import com.qinglong.app.data.model.Dependence
 import com.qinglong.app.data.repository.DependenceRepository
 import com.qinglong.app.data.repository.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -27,6 +29,7 @@ data class DependenceUiState(
     val logDependence: Dependence? = null,
     val logContent: String = "",
     val isLoadingLog: Boolean = false,
+    val autoRefreshLog: Boolean = false,
     // 删除确认
     val showDeleteConfirm: Boolean = false,
     val deletingDependence: Dependence? = null,
@@ -44,6 +47,9 @@ class DependenceViewModel @Inject constructor(
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
+
+    // 日志轮询任务
+    private var logPollingJob: Job? = null
 
     init {
         loadDependencies()
@@ -192,25 +198,56 @@ class DependenceViewModel @Inject constructor(
         }
     }
 
-    // 日志弹窗
+    // ===== 日志弹窗（带实时轮询） =====
+
     fun showLogDialog(dependence: Dependence) {
-        _uiState.update { it.copy(showLogDialog = true, logDependence = dependence, logContent = "", isLoadingLog = true) }
+        _uiState.update { it.copy(showLogDialog = true, logDependence = dependence, logContent = "", isLoadingLog = true, autoRefreshLog = true) }
         loadDependenceLog(dependence.id)
+        startLogPolling(dependence.id)
     }
 
     fun hideLogDialog() {
-        _uiState.update { it.copy(showLogDialog = false, logDependence = null, logContent = "", isLoadingLog = false) }
+        logPollingJob?.cancel()
+        logPollingJob = null
+        _uiState.update { it.copy(showLogDialog = false, logDependence = null, logContent = "", isLoadingLog = false, autoRefreshLog = false) }
+    }
+
+    fun toggleAutoRefresh(enabled: Boolean) {
+        _uiState.update { it.copy(autoRefreshLog = enabled) }
+        val dep = _uiState.value.logDependence ?: return
+        if (enabled) {
+            startLogPolling(dep.id)
+        } else {
+            logPollingJob?.cancel()
+            logPollingJob = null
+        }
+    }
+
+    fun refreshLog() {
+        val dep = _uiState.value.logDependence ?: return
+        loadDependenceLog(dep.id)
+    }
+
+    private fun startLogPolling(id: Int) {
+        logPollingJob?.cancel()
+        logPollingJob = viewModelScope.launch {
+            while (true) {
+                delay(3000)
+                if (!_uiState.value.autoRefreshLog) break
+                loadDependenceLog(id)
+            }
+        }
     }
 
     private fun loadDependenceLog(id: Int) {
         viewModelScope.launch {
             when (val result = dependenceRepository.getDependenceDetail(id)) {
                 is Result.Success -> {
-                    val log = (result.data.log?.joinToString("\n") ?: "") + "\n\n--- 结束 ---"
+                    val log = (result.data.log?.joinToString("\n") ?: "")
                     _uiState.update { it.copy(logContent = log, isLoadingLog = false) }
                 }
                 is Result.Error -> {
-                    _uiState.update { it.copy(logContent = "加载日志失败: ${result.message}", isLoadingLog = false) }
+                    _uiState.update { it.copy(logContent = "加载失败: ${result.message}", isLoadingLog = false) }
                 }
             }
         }
