@@ -1,5 +1,6 @@
 package com.qinglong.app.ui.screens.login
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -63,23 +65,12 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.fillMaxHeight(0.08f))
 
-            // Logo area
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(20.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Terminal,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(40.dp)
-                )
-            }
+            // Logo 图标
+            Image(
+                painter = painterResource(id = com.qinglong.app.R.drawable.ic_splash_logo),
+                contentDescription = "Logo",
+                modifier = Modifier.size(120.dp)
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -556,7 +547,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(40.dp))
 
             Text(
-                text = "青龙助手 v1.5.7  ·  Android 8.0+",
+                text = "青龙助手 v1.6.7  ·  Android 8.0+",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )

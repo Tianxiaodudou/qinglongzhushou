@@ -272,9 +272,10 @@ fun TaskScreen(
         if (uiState.logTask!!.isRunning) {
             // 运行中的任务：直接显示实时日志
             TaskLogDetailDialog(
-                task = uiState.logTask!!,
+                title = "实时日志: ${uiState.logTask!!.name}",
                 logContent = uiState.logContent,
                 isLoading = uiState.isLoadingLog,
+                isRunning = true,
                 autoRefreshEnabled = uiState.autoRefreshEnabled,
                 onRefresh = { viewModel.manualRefreshLog() },
                 onToggleAutoRefresh = { viewModel.toggleAutoRefresh() },
@@ -283,10 +284,9 @@ fun TaskScreen(
         } else if (uiState.isShowingLogDetail && uiState.selectedLogFile != null) {
             // 查看某条历史日志详情
             TaskLogDetailDialog(
-                task = uiState.logTask!!,
+                title = uiState.selectedLogFile!!.filename,
                 logContent = uiState.logContent,
                 isLoading = uiState.isLoadingLog,
-                title = uiState.selectedLogFile!!.filename,
                 onDismiss = { viewModel.hideLogDialog() },
                 onBack = { viewModel.backToLogFileList() }
             )

@@ -23,6 +23,7 @@ import com.qinglong.app.data.api.SockMessage
 import com.qinglong.app.data.repository.Result
 import com.qinglong.app.ui.components.CodeEditor
 import com.qinglong.app.ui.components.ErrorDialog
+import com.qinglong.app.ui.components.TaskLogDetailDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
@@ -257,65 +258,15 @@ fun ScriptEditorScreen(
         )
     }
 
-    // 运行日志弹窗
+    // 运行日志弹窗（使用通用实时日志组件）
     if (showLogDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("运行日志", modifier = Modifier.weight(1f))
-                    if (currentPid > 0) {
-                        TextButton(onClick = {
-                            coroutineScope.launch {
-                                val lastSlash = scriptKey.lastIndexOf('/')
-                                val filename = if (lastSlash >= 0) scriptKey.substring(lastSlash + 1) else scriptKey
-                                val path = if (lastSlash >= 0) scriptKey.substring(0, lastSlash) else ""
-                                viewModel.taskRepository.stopScript(filename, path, currentPid)
-                                showLogDialog = false
-                            }
-                        }) {
-                            Text("停止运行", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            },
-            text = {
-                Column(modifier = Modifier.heightIn(max = 400.dp)) {
-                    if (logDialogLoading) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
-                                Spacer(Modifier.height(8.dp))
-                                Text("正在连接服务器...")
-                            }
-                        }
-                    } else if (logDialogError != null) {
-                        Text(
-                            text = logDialogError ?: "未知错误",
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    } else {
-                        SelectionContainer {
-                            Text(
-                                text = logDialogContent.ifEmpty { "无日志输出" },
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showLogDialog = false }) {
-                    Text("关闭")
-                }
-            }
+        TaskLogDetailDialog(
+            title = "运行日志",
+            logContent = if (logDialogError != null) "加载失败: $logDialogError" else logDialogContent,
+            isLoading = logDialogLoading,
+            isRunning = false,
+            autoRefreshEnabled = false,
+            onDismiss = { showLogDialog = false }
         )
     }
 }
@@ -380,17 +331,17 @@ private suspend fun runScriptAndShowLog(
                     onLogUpdate(logContentBuilder.toString())
                 }
             } catch (_: Exception) {
-                logContentBuilder.append(rawMessage).append("\n")
-                onLogUpdate(logContentBuilder.toString())
-            }
-        }
-
-        // 订阅 manuallyRunScript 事件
-        wsManager.subscribe("manuallyRunScript") { msg ->
-            hasReceivedLog = true
-            if (msg.message.isNotEmpty()) {
-                logContentBuilder.append(msg.message).append("\n")
-                onLogUpdate(logContentBuilder.toString())
+                val msgStart = rawMessage.indexOf("\"message\":\"")
+                if (msgStart >= 0) {
+                    val contentStart = msgStart + 11
+                    val contentEnd = rawMessage.indexOf('"', contentStart)
+                    if (contentEnd >= 0) {
+                        var extracted = rawMessage.substring(contentStart, contentEnd)
+                        extracted = extracted.trimEnd()
+                        logContentBuilder.append(extracted).append("\n")
+                        onLogUpdate(logContentBuilder.toString())
+                    }
+                }
             }
         }
 

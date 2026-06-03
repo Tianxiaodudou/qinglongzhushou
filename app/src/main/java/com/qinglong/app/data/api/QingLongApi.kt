@@ -474,7 +474,7 @@ interface QingLongApi {
      * body: [id]
      */
     @HTTP(method = "DELETE", path = "api/dependencies", hasBody = true)
-    suspend fun deleteDependencies(@Body ids: List<Int>): Response<ApiResponse<Unit>>
+    suspend fun deleteDependencies(@Body ids: List<Int>): Response<ApiResponse<List<*>>>
 
     /**
      * 强制删除依赖
@@ -482,7 +482,7 @@ interface QingLongApi {
      * body: [id]
      */
     @HTTP(method = "DELETE", path = "api/dependencies/force", hasBody = true)
-    suspend fun forceDeleteDependencies(@Body ids: List<Int>): Response<ApiResponse<Unit>>
+    suspend fun forceDeleteDependencies(@Body ids: List<Int>): Response<ApiResponse<List<*>>>
 
     /**
      * 重新安装依赖
@@ -490,7 +490,7 @@ interface QingLongApi {
      * body: [id]
      */
     @PUT("api/dependencies/reinstall")
-    suspend fun reinstallDependencies(@Body ids: List<Int>): Response<ApiResponse<Unit>>
+    suspend fun reinstallDependencies(@Body ids: List<Int>): Response<ApiResponse<List<*>>>
 
     /**
      * 取消安装依赖
@@ -498,7 +498,7 @@ interface QingLongApi {
      * body: [id]
      */
     @PUT("api/dependencies/cancel")
-    suspend fun cancelDependencies(@Body ids: List<Int>): Response<ApiResponse<Unit>>
+    suspend fun cancelDependencies(@Body ids: List<Int>): Response<ApiResponse<List<*>>>
 
     /**
      * 获取依赖详情（含日志）

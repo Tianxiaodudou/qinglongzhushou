@@ -334,6 +334,7 @@ fun QingLongNavHost() {
                     scope.launch { drawerState.close() }
                 },
                 onLogout = {
+                    scope.launch { drawerState.close() }
                     authViewModel.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }

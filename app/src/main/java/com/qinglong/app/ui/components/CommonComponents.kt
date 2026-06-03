@@ -883,15 +883,16 @@ fun TaskLogListDialog(
  */
 @Composable
 fun TaskLogDetailDialog(
-    task: Task,
+    title: String,
     logContent: String,
     isLoading: Boolean,
-    title: String? = null,
+    isRunning: Boolean = false,
     autoRefreshEnabled: Boolean = true,
     onRefresh: (() -> Unit)? = null,
     onToggleAutoRefresh: ((Boolean) -> Unit)? = null,
     onDismiss: () -> Unit,
-    onBack: (() -> Unit)? = null
+    onBack: (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -907,26 +908,30 @@ fun TaskLogDetailDialog(
                     }
                 }
                 Text(
-                    text = title ?: (if (task.isRunning) "实时日志: ${task.name}" else "日志: ${task.name}"),
+                    text = title,
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (task.isRunning) {
-                    // 手动刷新按钮
-                    IconButton(onClick = { onRefresh?.invoke() }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新", modifier = Modifier.size(20.dp))
+                if (isRunning) {
+                    if (onRefresh != null) {
+                        IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Refresh, contentDescription = "刷新", modifier = Modifier.size(20.dp))
+                        }
                     }
-                    // 自动刷新开关
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(
-                            checked = autoRefreshEnabled,
-                            onCheckedChange = { onToggleAutoRefresh?.invoke(it) },
-                            modifier = Modifier.height(24.dp)
-                        )
+                    if (onToggleAutoRefresh != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(
+                                checked = autoRefreshEnabled,
+                                onCheckedChange = { onToggleAutoRefresh(it) },
+                                modifier = Modifier.height(24.dp)
+                            )
+                        }
                     }
                 }
+                // 自定义尾部内容（如脚本编辑器的停止运行按钮）
+                trailingContent?.invoke()
             }
         },
         text = {

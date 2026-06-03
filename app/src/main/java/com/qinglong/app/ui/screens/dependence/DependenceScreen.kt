@@ -198,41 +198,17 @@ fun DependenceScreen(
         )
     }
 
-    // 日志弹窗
+    // 日志弹窗（使用通用实时日志组件）
     if (uiState.showLogDialog && uiState.logDependence != null) {
-        AlertDialog(
-            onDismissRequest = { viewModel.hideLogDialog() },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("日志 - ${uiState.logDependence!!.name}")
-                }
-            },
-            text = {
-                Box(
-                    modifier = Modifier
-                        .heightIn(max = 400.dp)
-                        .fillMaxWidth()
-                ) {
-                    if (uiState.isLoadingLog) {
-                        LoadingView()
-                    } else {
-                        SelectionContainer {
-                            Text(
-                                text = uiState.logContent,
-                                modifier = Modifier.verticalScroll(rememberScrollState()),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.hideLogDialog() }) {
-                    Text("关闭")
-                }
-            }
+        TaskLogDetailDialog(
+            title = "日志 - ${uiState.logDependence!!.name}",
+            logContent = uiState.logContent,
+            isLoading = uiState.isLoadingLog,
+            isRunning = true,
+            autoRefreshEnabled = uiState.autoRefreshLog,
+            onRefresh = { viewModel.refreshLog() },
+            onToggleAutoRefresh = { viewModel.toggleAutoRefresh(it) },
+            onDismiss = { viewModel.hideLogDialog() }
         )
     }
 }
