@@ -556,7 +556,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(40.dp))
 
             Text(
-                text = "青龙助手 v1.5.2  ·  Android 8.0+",
+                text = "青龙助手 v1.5.6  ·  Android 8.0+",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
