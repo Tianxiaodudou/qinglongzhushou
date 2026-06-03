@@ -2,34 +2,6 @@
 
 青龙面板 Android 客户端，基于 Jetpack Compose + Kotlin + Clean Architecture 构建，覆盖青龙面板全部核心管理功能。通过左侧抽屉导航栏快速切换各模块，提供接近原生 Web 端的完整管理体验。
 
-<div align="center">
-  <img src="docs/screenshots/login.jpg" width="280" alt="登录界面"/>
-  <img src="docs/screenshots/tasks.jpg" width="280" alt="定时任务界面"/>
-  <img src="docs/screenshots/navigation.jpg" width="280" alt="导航抽屉"/>
-</div>
-
----
-
-## 📋 目录
-
-- [🔐 登录与服务器管理](#-登录与服务器管理)
-- [📋 定时任务](#-定时任务)
-- [📦 订阅管理](#-订阅管理)
-- [🌿 环境变量](#-环境变量)
-- [📄 脚本管理](#-脚本管理)
-- [📝 日志管理](#-日志管理)
-- [⚙️ 系统状态](#️-系统状态)
-- [🛠️ 面板设置](#️-面板设置)
-- [📢 通知设置](#-通知设置)
-- [🔒 安全设置](#-安全设置)
-- [🎨 应用设置](#-应用设置)
-- [🔧 依赖管理](#-依赖管理)
-- [🧭 导航与界面](#-导航与界面)
-- [🛠️ 技术栈](#️-技术栈)
-- [📁 项目结构](#-项目结构)
-- [💝 自愿捐赠](#-自愿捐赠)
-
----
 
 ## 🔐 登录与服务器管理
 
@@ -191,36 +163,6 @@
 
 ---
 
-## 📝 日志管理
-
-- 查看青龙面板上所有日志文件列表（按任务归类）
-- 支持按任务名称搜索过滤
-- 支持多选删除日志文件
-- 查看日志详情：支持文本选择复制、自动滚动
-
-### 实时日志组件
-全部实时日志弹窗统一使用通用组件 `TaskLogDetailDialog`：
-
-| 使用位置 | 功能 |
-|---------|------|
-| 定时任务日志 | 自动轮询刷新 + 手动刷新 + 自动滚动 |
-| 订阅管理日志 | 自动轮询刷新 + 手动刷新 + 自动滚动 |
-| 依赖安装日志 | 自动轮询刷新 + 手动刷新 + 自动滚动 |
-| 脚本运行日志 | WebSocket 实时推送 + 停止运行按钮 |
-
----
-
-## ⚙️ 系统状态
-
-- 实时查看青龙面板服务器资源使用情况
-- CPU 使用率（百分比 + 进度条）
-- 内存使用率（已用/总量 + 百分比）
-- 硬盘使用率（已用/总量 + 百分比）
-- 系统运行时间（uptime）
-- 节点版本号
-
----
-
 ## 🛠️ 面板设置
 
 | 面板设置 |
@@ -233,53 +175,6 @@
 
 ---
 
-## 📢 通知设置
-
-| 通知设置 |
-|:---:|
-| <img src="docs/screenshots/notification.jpg" width="280" alt="通知设置界面"/>|
-
-支持 **22 种通知方式** 的一键配置，每种方式都有对应的配置表单：
-
-| 通知方式 | 说明 |
-|---------|------|
-| **企业微信机器人** | 企业微信群机器人 Webhook |
-| **Server 酱** | Server 酱 / Server 酱 Turbo |
-| **PushDeer** | PushDeer 自定义推送 |
-| **Bark** | iOS Bark 推送 |
-| **Telegram Bot** | Telegram 机器人通知 |
-| **钉钉机器人** | 钉钉群机器人 Webhook |
-| **飞书机器人** | 飞书群机器人 Webhook |
-| **SMTP 邮件** | 通过 SMTP 服务器发送邮件 |
-| **iGot** | iGot 聚合推送 |
-| **GoCQhttp** | QQ 机器人通知 |
-| **PushPlus** | PushPlus 推送 |
-| **WeWork APP** | 企业微信应用消息 |
-| **自定义 Webhook** | 自定义 URL 回调 |
-| … 及其他 | 多种通知方式覆盖 |
-
-填入对应密钥/Webhook URL 即可启用，支持同时启用多个通知渠道。
-
----
-
-## 🔒 安全设置
-
-### 修改密码
-- 输入当前密码 + 新密码 → 更新青龙面板登录密码
-
-### 两步验证（2FA）
-- 启用/禁用双重认证
-- 启用时需扫描二维码绑定验证器（如 Google Authenticator、Authy）
-
-### 开放平台应用管理
-- 应用列表：展示已注册的第三方应用
-- **新增应用**：注册新的开放平台应用
-- **编辑应用**：修改应用信息
-- **删除应用**：移除应用
-- **重置密钥**：重新生成 Client Secret
-- **一键复制**：Client ID / Client Secret 点击即可复制到剪贴板
-
----
 
 ## 🎨 应用设置
 
@@ -370,86 +265,6 @@
 - 青龙面板版本号
 
 ---
-
-## 🛠️ 技术栈
-
-| 技术 | 说明 |
-|------|------|
-| **UI 框架** | Jetpack Compose + Material Design 3 |
-| **架构模式** | Clean Architecture + MVVM |
-| **依赖注入** | Hilt (Dagger) |
-| **网络请求** | Retrofit 2 + OkHttp 4 + Gson |
-| **异步编程** | Kotlin Coroutines + Flow |
-| **导航** | Navigation Compose |
-| **图片加载** | Coil |
-| **本地存储** | EncryptedSharedPreferences + DataStore |
-| **实时通信** | WebSocket + SockJS 协议 |
-| **安全加密** | Android Security Crypto |
-| **最低 SDK** | Android 14 (API 34) |
-| **目标 SDK** | Android 15 (API 35) |
-| **开发语言** | Kotlin |
-| **构建工具** | Gradle 8.2 + AGP 8.2.2 |
-
-## 📁 项目结构
-
-```
-qinglong/
-├── app/
-│   ├── build.gradle.kts              # APP 构建配置
-│   ├── proguard-rules.pro             # 混淆规则
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/qinglong/app/
-│       │   ├── MainActivity.kt        # 入口 Activity
-│       │   ├── QingLongApp.kt         # Application（Hilt + CrashHandler）
-│       │   ├── data/
-│       │   │   ├── api/
-│       │   │   │   ├── ApiManager.kt       # Retrofit 单例 & 自动登录
-│       │   │   │   ├── AuthInterceptor.kt  # Bearer Token 注入 + 401 检测
-│       │   │   │   ├── QingLongApi.kt      # 全部 API 接口定义
-│       │   │   │   └── QingLongWebSocket.kt # WebSocket / SockJS 实时通信
-│       │   │   ├── model/Models.kt          # 数据模型
-│       │   │   └── repository/              # 数据仓库层
-│       │   ├── di/NetworkModule.kt          # Hilt 依赖注入模块
-│       │   ├── ui/
-│       │   │   ├── QingLongNavHost.kt       # 导航宿主（Drawer + 路由）
-│       │   │   ├── theme/                   # 主题（颜色/字体/暗色模式）
-│       │   │   ├── components/              # 通用 UI 组件
-│       │   │   ├── screens/
-│       │   │   │   ├── splash/              # 启动页（自动登录动画）
-│       │   │   │   ├── login/               # 登录页（含服务器管理）
-│       │   │   │   ├── task/                # 定时任务
-│       │   │   │   ├── subscription/        # 订阅管理
-│       │   │   │   ├── env/                 # 环境变量
-│       │   │   │   ├── dependence/          # 依赖管理
-│       │   │   │   ├── script/              # 脚本管理 & 编辑器
-│       │   │   │   ├── log/                 # 日志管理
-│       │   │   │   ├── systemlog/           # 系统日志
-│       │   │   │   ├── loginlog/            # 登录日志
-│       │   │   │   ├── system/              # 系统状态
-│       │   │   │   ├── panel/               # 面板设置
-│       │   │   │   ├── notification/        # 通知设置
-│       │   │   │   ├── security/            # 安全设置
-│       │   │   │   ├── appmanagement/       # 开放平台应用
-│       │   │   │   ├── config/              # 配置文件
-│       │   │   │   ├── othersetting/        # 其他设置
-│       │   │   │   ├── dependencesetting/   # 依赖设置
-│       │   │   │   └── appsettings/         # 应用设置
-│       │   │   └── navigation/              # 路由定义
-│       │   └── util/                        # 工具类
-│       └── res/                             # 资源文件
-├── build.gradle.kts                 # 顶层构建配置
-├── settings.gradle.kts              # 项目设置
-└── docs/                            # 文档
-```
-
-## 🔒 隐私与安全
-
-- 所有认证信息（Token、密码）使用 **Android EncryptedSharedPreferences**（AES-256 GCM）加密存储
-- 网络请求自动注入 `Authorization: Bearer <Token>` 认证头
-- 收到 HTTP 401 响应时自动清除 Token 并跳转登录页
-- 支持两步验证（2FA），保障账户安全
-- 密码输入框支持明文/密文切换，默认密文显示
 
 ---
 
