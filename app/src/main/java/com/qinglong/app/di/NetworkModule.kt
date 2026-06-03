@@ -15,6 +15,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Module
@@ -30,7 +31,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        authRepository: AuthRepository
+        authRepository: AuthRepository,
+        apiManagerProvider: Provider<ApiManager>
     ): OkHttpClient {
         // NOTE: 不使用 HttpLoggingInterceptor.Level.BODY，因为 LiveLoggingInterceptor 已经做日志
         // Level.BODY 会完整读取响应体导致 Retrofit 反序列化失败且严重拖慢性能
@@ -39,7 +41,8 @@ object NetworkModule {
         }
 
         val authInterceptor = AuthInterceptor(
-            getToken = { authRepository.getToken() }
+            getToken = { authRepository.getToken() },
+            onUnauthorized = { apiManagerProvider.get().onUnauthorized?.invoke() }
         )
 
         return OkHttpClient.Builder()

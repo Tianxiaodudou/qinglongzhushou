@@ -4,7 +4,8 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 class AuthInterceptor(
-    private val getToken: () -> String?
+    private val getToken: () -> String?,
+    private val onUnauthorized: () -> Unit
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -22,6 +23,14 @@ class AuthInterceptor(
             }
             addHeader("Content-Type", "application/json")
         }.build()
-        return chain.proceed(newRequest)
+
+        val response = chain.proceed(newRequest)
+
+        // 检测 401 → Token 过期，通知上层做退出登录处理
+        if (response.code == 401) {
+            onUnauthorized()
+        }
+
+        return response
     }
 }

@@ -8,7 +8,7 @@ plugins {
 // 版本号递增：major.minor.patch → versionCode
 // 使用 7 位数字，超过旧版时间戳版 versionCode（0~999999）
 fun calculateVersionCode(): Int {
-    val parts = "1.5.1".split(".")
+    val parts = "1.5.2".split(".")
     return parts[0].toInt() * 1000000 + parts[1].toInt() * 10000 + parts[2].toInt() * 100
 }
 
@@ -21,7 +21,7 @@ android {
         minSdk = 34
         targetSdk = 35
         versionCode = calculateVersionCode()
-        versionName = "1.5.1"
+        versionName = "1.5.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
