@@ -8,6 +8,8 @@ import com.qinglong.app.data.repository.Result
 import com.qinglong.app.data.repository.TaskRepository
 import com.qinglong.app.util.AppSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,6 +37,7 @@ data class SubscriptionUiState(
     val logSubscription: Subscription? = null,
     val logContent: String = "",
     val isLoadingLog: Boolean = false,
+    val autoRefreshEnabled: Boolean = true,
     val logFiles: List<CronLogFile> = emptyList(),
     val isLoadingLogFiles: Boolean = false,
     val isLogBatchMode: Boolean = false,
@@ -58,6 +61,9 @@ class SubscriptionViewModel @Inject constructor(
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
+
+    // 实时日志轮询任务
+    private var logPollingJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -218,42 +224,31 @@ class SubscriptionViewModel @Inject constructor(
     }
 
     fun runSubscription(id: Int) {
+        // 乐观更新：立即设置卡片为"运行中"，不等 API 返回
+        _uiState.update { state ->
+            state.copy(
+                subscriptions = state.subscriptions.map { sub ->
+                    if (sub.id == id) sub.copy(status = 0, pid = 1) else sub
+                }
+            )
+        }
+        // 后台发起 API 调用（静默失败，不影响 UI）
         viewModelScope.launch {
-            when (val result = taskRepository.runSubscription(id)) {
-                is Result.Success -> {
-                    // 只更新本地状态，不重新加载列表
-                    _uiState.update { state ->
-                        state.copy(
-                            subscriptions = state.subscriptions.map { sub ->
-                                if (sub.id == id) sub.copy(status = 0, pid = 1) else sub
-                            }
-                        )
-                    }
-                }
-                is Result.Error -> {
-                    _toastMessage.value = "运行失败: ${result.message}"
-                }
-            }
+            taskRepository.runSubscription(id)
         }
     }
 
     fun stopSubscription(id: Int) {
+        // 乐观更新：立即设置为"空闲"
+        _uiState.update { state ->
+            state.copy(
+                subscriptions = state.subscriptions.map { sub ->
+                    if (sub.id == id) sub.copy(status = 1, pid = null) else sub
+                }
+            )
+        }
         viewModelScope.launch {
-            when (val result = taskRepository.batchStopSubscriptions(listOf(id))) {
-                is Result.Success -> {
-                    // 只更新本地状态
-                    _uiState.update { state ->
-                        state.copy(
-                            subscriptions = state.subscriptions.map { sub ->
-                                if (sub.id == id) sub.copy(status = 1, pid = null) else sub
-                            }
-                        )
-                    }
-                }
-                is Result.Error -> {
-                    _toastMessage.value = "停止失败: ${result.message}"
-                }
-            }
+            taskRepository.batchStopSubscriptions(listOf(id))
         }
     }
 
@@ -352,13 +347,24 @@ class SubscriptionViewModel @Inject constructor(
     // ===================== 日志弹窗 =====================
 
     fun showLogDialog(subscription: Subscription) {
-        _uiState.update { it.copy(showLogDialog = true, logSubscription = subscription) }
-        // 先加载实时日志，同时加载历史日志列表
-        loadLogContent(subscription)
-        loadLogFiles(subscription)
+        // 取消之前的轮询
+        logPollingJob?.cancel()
+
+        _uiState.update { it.copy(showLogDialog = true, logSubscription = subscription, autoRefreshEnabled = true) }
+        if (subscription.isRunning) {
+            // 运行中：加载最新日志并启动自动轮询
+            loadLatestLog(subscription.id)
+            startLogPolling(subscription.id)
+        } else {
+            // 非运行中：加载历史日志列表
+            loadLogFiles(subscription)
+        }
     }
 
     fun hideLogDialog() {
+        // 取消实时日志轮询
+        logPollingJob?.cancel()
+        logPollingJob = null
         _uiState.update { it.copy(
             showLogDialog = false, logSubscription = null, logContent = "",
             logFiles = emptyList(), isLoadingLogFiles = false,
@@ -366,21 +372,6 @@ class SubscriptionViewModel @Inject constructor(
             isShowingLogDetail = false, selectedLogFile = null,
             showDeleteLogConfirm = false, deletingLogFile = null
         ) }
-    }
-
-    private fun loadLogContent(subscription: Subscription) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingLog = true) }
-            // 订阅实时日志: GET /api/subscriptions/:id/log
-            when (val result = taskRepository.getSubscriptionLog(subscription.id)) {
-                is Result.Success -> {
-                    _uiState.update { it.copy(isLoadingLog = false, logContent = result.data.ifBlank { "暂无日志" }) }
-                }
-                is Result.Error -> {
-                    _uiState.update { it.copy(isLoadingLog = false, logContent = "加载失败: ${result.message}") }
-                }
-            }
-        }
     }
 
     private fun loadLogFiles(subscription: Subscription) {
@@ -393,6 +384,70 @@ class SubscriptionViewModel @Inject constructor(
                 }
                 is Result.Error -> {
                     _uiState.update { it.copy(isLoadingLogFiles = false, logFiles = emptyList()) }
+                }
+            }
+        }
+    }
+
+    /**
+     * 切换自动刷新
+     */
+    fun toggleAutoRefresh() {
+        val currentSub = _uiState.value.logSubscription ?: return
+        val newState = !_uiState.value.autoRefreshEnabled
+        _uiState.update { it.copy(autoRefreshEnabled = newState) }
+        if (newState) {
+            startLogPolling(currentSub.id)
+        } else {
+            logPollingJob?.cancel()
+        }
+    }
+
+    /**
+     * 手动刷新日志
+     */
+    fun manualRefreshLog() {
+        val currentSub = _uiState.value.logSubscription ?: return
+        loadLatestLog(currentSub.id)
+    }
+
+    /**
+     * 启动实时日志轮询
+     */
+    private fun startLogPolling(subId: Int) {
+        logPollingJob?.cancel()
+        logPollingJob = viewModelScope.launch {
+            // 首次读取刷新间隔
+            var intervalMs = appSettings.subLogRefreshMsState.value.toLong()
+            // 监听刷新间隔变化
+            launch {
+                appSettings.subLogRefreshMsState.collect { ms ->
+                    intervalMs = ms.toLong()
+                }
+            }
+            while (true) {
+                delay(intervalMs)
+                when (val result = taskRepository.getSubscriptionLog(subId)) {
+                    is Result.Success -> {
+                        _uiState.update { it.copy(logContent = result.data) }
+                    }
+                    is Result.Error -> {
+                        // 静默失败，不阻塞轮询
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadLatestLog(subId: Int) {
+        _uiState.update { it.copy(isLoadingLog = true, logContent = "") }
+        viewModelScope.launch {
+            when (val result = taskRepository.getSubscriptionLog(subId)) {
+                is Result.Success -> {
+                    _uiState.update { it.copy(logContent = result.data, isLoadingLog = false) }
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(logContent = "加载失败: ${result.message}", isLoadingLog = false) }
                 }
             }
         }

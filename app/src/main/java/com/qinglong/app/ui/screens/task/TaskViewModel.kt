@@ -459,38 +459,31 @@ class TaskViewModel @Inject constructor(
     }
 
     fun runTask(id: Int) {
-        viewModelScope.launch {
-            when (taskRepository.runTasks(listOf(id))) {
-                is Result.Success -> {
-                    // 只更新本地任务状态，不重新加载列表，避免列表顺序变化导致用户丢失当前位置
-                    _uiState.update { state ->
-                        state.copy(
-                            tasks = state.tasks.map { task ->
-                                if (task.id == id) task.copy(isDisabled = 0, status = 0) else task
-                            }
-                        )
-                    }
+        // 乐观更新：立即设置卡片为"运行中"，不等 API 返回
+        _uiState.update { state ->
+            state.copy(
+                tasks = state.tasks.map { task ->
+                    if (task.id == id) task.copy(isDisabled = 0, status = 0, pid = 1) else task
                 }
-                is Result.Error -> {}
-            }
+            )
+        }
+        // 后台发起 API 调用（静默失败，不影响 UI）
+        viewModelScope.launch {
+            taskRepository.runTasks(listOf(id))
         }
     }
 
     fun stopTask(id: Int) {
-        viewModelScope.launch {
-            when (taskRepository.stopTasks(listOf(id))) {
-                is Result.Success -> {
-                    // 只更新本地任务状态，不重新加载列表
-                    _uiState.update { state ->
-                        state.copy(
-                            tasks = state.tasks.map { task ->
-                                if (task.id == id) task.copy(status = 1) else task
-                            }
-                        )
-                    }
+        // 乐观更新：立即设置为"空闲中"
+        _uiState.update { state ->
+            state.copy(
+                tasks = state.tasks.map { task ->
+                    if (task.id == id) task.copy(status = 1, pid = null) else task
                 }
-                is Result.Error -> {}
-            }
+            )
+        }
+        viewModelScope.launch {
+            taskRepository.stopTasks(listOf(id))
         }
     }
 

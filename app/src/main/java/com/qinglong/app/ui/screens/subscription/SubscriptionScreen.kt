@@ -208,12 +208,15 @@ fun SubscriptionScreen(
     if (uiState.showLogDialog && uiState.logSubscription != null) {
         val sub = uiState.logSubscription!!
         if (sub.isRunning) {
-            // 运行中 → 实时日志
+            // 运行中 → 实时日志（带自动刷新）
             TaskLogDetailDialog(
                 title = "实时日志: ${sub.name}",
                 logContent = uiState.logContent,
                 isLoading = uiState.isLoadingLog,
                 isRunning = true,
+                autoRefreshEnabled = uiState.autoRefreshEnabled,
+                onRefresh = { viewModel.manualRefreshLog() },
+                onToggleAutoRefresh = { viewModel.toggleAutoRefresh() },
                 onDismiss = { viewModel.hideLogDialog() }
             )
         } else if (uiState.isShowingLogDetail && uiState.selectedLogFile != null) {
